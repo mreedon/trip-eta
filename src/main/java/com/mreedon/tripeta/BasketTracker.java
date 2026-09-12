@@ -150,6 +150,19 @@ class BasketTracker
 		}
 	}
 
+	/**
+	 * An item took an inventory slot while the basket was open. An open basket takes every
+	 * item until it is full, so this can only happen when it is: the count snaps to capacity.
+	 * This is what recovers from the unknown-after-login state without a manual Check.
+	 */
+	void onItemsIntoInventoryWhileOpen(int n)
+	{
+		if (present && open && n > 0)
+		{
+			used = CAPACITY;
+		}
+	}
+
 	/** Inventory slots gained with no item arriving came out of the basket ("empty as many as you can carry"). */
 	void onInventoryGainWithoutItems(int n)
 	{

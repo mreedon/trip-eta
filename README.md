@@ -76,8 +76,11 @@ the plugin adds its 28 slots to the trip and follows what is in it:
 - "The basket is full", "Your basket is empty", the emptied-to-bank and
   emptied-to-inventory lines, and the "Check" summary all set the count directly.
 
-After logging in the contents are unknown and assumed empty. If that is wrong,
-right-click the basket and *Check* once and the plugin picks up the real number.
+After logging in the contents are unknown and assumed empty. With an **open**
+basket that fixes itself: an open basket takes every log until it is full, so the
+first log that lands in your inventory proves the basket is at 28 and the count
+snaps there. With a closed basket the plugin cannot tell, so right-click it and
+*Check* once and it picks up the real number.
 
 ## Privacy
 

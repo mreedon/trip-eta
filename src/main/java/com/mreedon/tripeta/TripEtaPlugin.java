@@ -201,6 +201,14 @@ public class TripEtaPlugin extends Plugin
 		int inventoryGain = Math.max(0, occupiedSlots - occupiedAtTickStart);
 		int toBasket = Math.max(0, itemMessagesThisTick - inventoryGain);
 		int fromBasket = Math.max(0, inventoryGain - itemMessagesThisTick);
+		int intoInventory = Math.min(itemMessagesThisTick, inventoryGain);
+		if (intoInventory > 0 && basket.isPresent() && basket.isOpen() && basket.getUsed() < BasketTracker.CAPACITY)
+		{
+			// An open basket only lets an item reach the inventory once it is full.
+			basket.onItemsIntoInventoryWhileOpen(intoInventory);
+			log.debug("open basket must be full: {} item(s) went to the inventory -> {}/{}",
+				intoInventory, basket.getUsed(), BasketTracker.CAPACITY);
+		}
 		if (toBasket > 0)
 		{
 			if (basket.isPresent())

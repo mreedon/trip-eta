@@ -91,6 +91,26 @@ public class BasketTrackerTest
 	}
 
 	@Test
+	public void itemReachingInventoryWhileOpenMeansFull()
+	{
+		BasketTracker b = present(); // open
+		assertEquals(0, b.getUsed());
+		b.onItemsIntoInventoryWhileOpen(1);
+		assertEquals(28, b.getUsed());
+		assertEquals(0, b.remaining());
+	}
+
+	@Test
+	public void itemReachingInventoryWhileClosedSaysNothing()
+	{
+		BasketTracker b = new BasketTracker();
+		b.setPresent(true, false);
+		b.onManualFill(10);
+		b.onItemsIntoInventoryWhileOpen(1);
+		assertEquals(10, b.getUsed());
+	}
+
+	@Test
 	public void resetClearsEverything()
 	{
 		BasketTracker b = present();
