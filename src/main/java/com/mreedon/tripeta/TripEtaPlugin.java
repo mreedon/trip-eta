@@ -68,6 +68,7 @@ public class TripEtaPlugin extends Plugin
 	private static final int BANK_GRACE_TICKS = 3;
 	private static final String INVENTORY_FULL_PREFIX = "Your inventory is too full to hold any more";
 	private static final String PRIOR_KEY_PREFIX = "secondsPerRoll.";
+	private static final String LEGACY_PRIOR_KEY_PREFIX = "secondsPerItem.";
 
 	@Inject
 	private Client client;
@@ -496,6 +497,18 @@ public class TripEtaPlugin extends Plugin
 		for (Activity a : Activity.values())
 		{
 			Double v = configManager.getRSProfileConfiguration(TripEtaConfig.GROUP, PRIOR_KEY_PREFIX + a.name(), Double.class);
+			if (v == null)
+			{
+				// Pre-release builds stored seconds per item; convert once and drop the old key.
+				Double legacy = configManager.getRSProfileConfiguration(TripEtaConfig.GROUP, LEGACY_PRIOR_KEY_PREFIX + a.name(), Double.class);
+				if (legacy != null && legacy > 0)
+				{
+					v = legacy * a.itemChanceWithMisses;
+					savePrior(a, v);
+					configManager.unsetRSProfileConfiguration(TripEtaConfig.GROUP, LEGACY_PRIOR_KEY_PREFIX + a.name());
+					log.debug("converted legacy prior for {}: {} s/item -> {} s/roll", a, legacy, v);
+				}
+			}
 			if (v != null && v > 0)
 			{
 				priors.put(a, v);

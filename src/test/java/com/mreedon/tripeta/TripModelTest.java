@@ -83,8 +83,9 @@ public class TripModelTest
 		gather(m, 10); // 6 s
 		m.onItem(Activity.WOODCUTTING, 0);
 		m.onItem(Activity.WOODCUTTING, 0); // observed 3 s/item
-		// (3*2 + 10*6) / (2+6) = 66/8 = 8.25
-		assertEquals(8.25, m.secondsPerItem(), EPS);
+		// (3*2 + 10*PRIOR_WEIGHT) / (2+PRIOR_WEIGHT)
+		double expected = (3.0 * 2 + 10.0 * TripModel.PRIOR_WEIGHT) / (2 + TripModel.PRIOR_WEIGHT);
+		assertEquals(expected, m.secondsPerItem(), EPS);
 	}
 
 	@Test

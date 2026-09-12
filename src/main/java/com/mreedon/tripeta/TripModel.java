@@ -47,8 +47,12 @@ package com.mreedon.tripeta;
 class TripModel
 {
 	static final double TICK_SECONDS = 0.6;
-	/** How many observed rolls the carried-over rate from earlier trips is worth. */
-	static final int PRIOR_WEIGHT = 6;
+	/**
+	 * How many observed rolls the carried-over rate from earlier trips is worth. A full
+	 * trip is about 70 rolls, and a dozen early rolls can easily run 30% fast or slow, so
+	 * the prior has to outweigh the first few minutes to keep the estimate from chasing luck.
+	 */
+	static final int PRIOR_WEIGHT = 20;
 	/** With no prior, wait for this many successful rolls before showing an estimate. */
 	static final int MIN_ROLLS_FOR_ESTIMATE = 2;
 	/** Only trips with at least this many successful rolls teach the prior. */
