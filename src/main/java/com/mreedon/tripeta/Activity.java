@@ -35,7 +35,9 @@ import net.runelite.api.gameval.AnimationID;
  * A gathering activity the plugin understands: how to tell the player is doing it
  * (the local player's animation) and how to tell an item just arrived (a chat line).
  *
- * Adding mining or fishing later is a new constant here, nothing else.
+ * Animation sets mirror the core RuneLite plugins for each skill (Woodcutting,
+ * MiningAnimation, and the Idle Notifier's fishing set), so anything core treats as
+ * "doing the skill" counts as gathering time here too.
  */
 enum Activity
 {
@@ -85,6 +87,125 @@ enum Activity
 			+ "|The nature offerings enabled you to chop an extra log)\\.$"),
 		// Felling axe with forester's rations: a successful chop that yields no log.
 		Pattern.compile("^You strike a clean cut without gathering any material\\.$")
+	),
+
+	MINING(
+		"Mining",
+		"ores",
+		"Off rock",
+		// No known no-item outcome for a successful swing; the coin never applies.
+		1.0,
+		// Pickaxes change the swing cadence as well as the odds, so no single cycle; the
+		// range falls back to the conservative end until this is measured.
+		0,
+		new int[]{
+			AnimationID.HUMAN_MINING_BRONZE_PICKAXE,
+			AnimationID.HUMAN_MINING_BRONZE_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_BRONZE_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_IRON_PICKAXE,
+			AnimationID.HUMAN_MINING_IRON_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_IRON_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_STEEL_PICKAXE,
+			AnimationID.HUMAN_MINING_STEEL_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_STEEL_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_BLACK_PICKAXE,
+			AnimationID.HUMAN_MINING_BLACK_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_BLACK_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_MITHRIL_PICKAXE,
+			AnimationID.HUMAN_MINING_MITHRIL_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_MITHRIL_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_ADAMANT_PICKAXE,
+			AnimationID.HUMAN_MINING_ADAMANT_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_ADAMANT_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_RUNE_PICKAXE,
+			AnimationID.HUMAN_MINING_RUNE_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_RUNE_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_GILDED_PICKAXE,
+			AnimationID.HUMAN_MINING_GILDED_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_GILDED_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_DRAGON_PICKAXE,
+			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_PRETTY,
+			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_PRETTY_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_PRETTY_WALL,
+			AnimationID.HUMAN_MINING_INFERNAL_PICKAXE,
+			AnimationID.HUMAN_MINING_INFERNAL_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_INFERNAL_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_3A_PICKAXE,
+			AnimationID.HUMAN_MINING_3A_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_3A_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_CRYSTAL_PICKAXE,
+			AnimationID.HUMAN_MINING_CRYSTAL_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_CRYSTAL_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_NO_INFERNAL,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_NO_INFERNAL_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_NO_INFERNAL_WALL,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_WALL,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_NO_INFERNAL,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_NO_INFERNAL_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_NO_INFERNAL_WALL,
+			AnimationID.HUMAN_MINING_LEAGUE_TRAILBLAZER_PICKAXE,
+			AnimationID.HUMAN_MINING_LEAGUE_TRAILBLAZER_PICKAXE_NOREACHFORWARD,
+			AnimationID.HUMAN_MINING_LEAGUE_TRAILBLAZER_PICKAXE_WALL,
+		},
+		// Ore lines, plus the bonus-ore lines (Varrock armour, Mining cape, celestial ring)
+		// that hand over an ore without a "You manage to mine" line.
+		Pattern.compile("^(?:You manage to mine (?:some|an?) [\\w' ]+"
+			+ "|The Varrock platebody enabled you to mine an additional ore"
+			+ "|Your cape allows you to mine an additional ore"
+			+ "|Your celestial ring allows you to mine an additional ore)\\.$",
+			Pattern.CASE_INSENSITIVE),
+		null
+	),
+
+	FISHING(
+		"Fishing",
+		"fish",
+		"Off spot",
+		1.0,
+		// Fishing cadence varies by method; unknown until measured, so the range stays conservative.
+		0,
+		new int[]{
+			AnimationID.HUMAN_FISHING_CASTING,
+			AnimationID.HUMAN_FISHING_CASTING_BRUT,
+			AnimationID.HUMAN_FISHING_CASTING_NPC,
+			AnimationID.HUMAN_FISHING_CASTING_PEARL,
+			AnimationID.HUMAN_FISHING_CASTING_PEARL_BRUT,
+			AnimationID.HUMAN_FISHING_CASTING_PEARL_FLY,
+			AnimationID.HUMAN_FISHING_CASTING_PEARL_OILY,
+			AnimationID.HUMAN_FISHING_ONSPOT_BRUT,
+			AnimationID.HUMAN_FISH_ONSPOT,
+			AnimationID.HUMAN_FISH_ONSPOT_PEARL,
+			AnimationID.HUMAN_FISH_ONSPOT_PEARL_BRUT,
+			AnimationID.HUMAN_FISH_ONSPOT_PEARL_FLY,
+			AnimationID.HUMAN_FISH_ONSPOT_PEARL_OILY,
+			AnimationID.HUMAN_HARPOON,
+			AnimationID.HUMAN_HARPOON_BARBED,
+			AnimationID.HUMAN_HARPOON_CRYSTAL,
+			AnimationID.HUMAN_HARPOON_DRAGON,
+			AnimationID.HUMAN_HARPOON_INFERNAL,
+			AnimationID.HUMAN_HARPOON_TRAILBLAZER,
+			AnimationID.HUMAN_HARPOON_TRAILBLAZER_NO_INFERNAL,
+			AnimationID.HUMAN_HARPOON_TRAILBLAZER_RELOADED,
+			AnimationID.HUMAN_HARPOON_TRAILBLAZER_RELOADED_NO_INFERNAL,
+			AnimationID.HUMAN_HARPOON_LEAGUE_TRAILBLAZER,
+			AnimationID.HUMAN_LARGENET,
+			AnimationID.HUMAN_SMALLNET,
+			AnimationID.BRUT_PLAYER_HAND_FISHING_END_BLANK,
+		},
+		// Core Fishing plugin's catch regex, the ice-gloves suffix, and the extra-fish lines
+		// (Rada's blessing, angler's outfit) that hand over a fish without a "You catch" line.
+		Pattern.compile("^(?:You catch (?:an?|some) [\\w' -]+?"
+			+ "|Your cormorant returns with its catch"
+			+ "|.+ enabled you to catch an extra fish)[.!]"
+			+ "(?: It hardens as you handle it with your ice gloves\\.)?$"),
+		null
 	);
 
 	/** Verb shown on the overlay, e.g. "Chopping". */
