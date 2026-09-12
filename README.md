@@ -3,7 +3,9 @@
 A [RuneLite](https://runelite.net/) plugin that estimates when your inventory will
 fill, counting only the time you are actually gathering.
 
-Woodcutting now. Mining and fishing next.
+Woodcutting, mining and fishing. Each is an entry in one activity table: the
+animation set that means "gathering" and the chat line that means "an item arrived".
+Fish barrels and coal bags are not followed yet, only the log basket is.
 
 ## What it shows
 
