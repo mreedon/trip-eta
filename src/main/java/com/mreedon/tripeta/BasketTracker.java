@@ -60,7 +60,7 @@ class BasketTracker
 	private static final String CHECKED_EMPTY = "The basket is empty.";
 	private static final String EMPTIED_TO_INVENTORY = "You empty your basket.";
 	/** Entries in the "Check" item box look like "12 x Redwood logs". */
-	private static final Pattern CHECK_ENTRY = Pattern.compile("(\\d+)\\s*[×x]\\s*[A-Za-z][^,]*", Pattern.CASE_INSENSITIVE);
+	private static final Pattern CHECK_ENTRY = Pattern.compile("(\\d+)\\s*[×x]\\s+(?=[A-Za-z])", Pattern.CASE_INSENSITIVE);
 
 	private boolean present;
 	private boolean open;
