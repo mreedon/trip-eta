@@ -11,7 +11,7 @@ public class BasketTrackerTest
 	private static BasketTracker present()
 	{
 		BasketTracker b = new BasketTracker();
-		b.setPresent(true, true);
+		b.setPresent(true, true, false);
 		return b;
 	}
 
@@ -118,10 +118,23 @@ public class BasketTrackerTest
 	public void itemReachingInventoryWhileClosedSaysNothing()
 	{
 		BasketTracker b = new BasketTracker();
-		b.setPresent(true, false);
+		b.setPresent(true, false, false);
 		b.onManualFill(10);
 		b.onItemsIntoInventoryWhileOpen(1);
 		assertEquals(10, b.getUsed());
+	}
+
+	@Test
+	public void wornBasketCountsAndIsFlagged()
+	{
+		BasketTracker b = new BasketTracker();
+		b.setPresent(true, true, true);
+		assertTrue(b.isWorn());
+		assertEquals(28, b.remaining());
+		b.onItemsWithoutInventoryGain(3);
+		assertEquals(3, b.getUsed());
+		b.reset();
+		assertFalse(b.isWorn());
 	}
 
 	@Test

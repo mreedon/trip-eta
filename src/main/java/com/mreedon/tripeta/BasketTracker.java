@@ -64,6 +64,7 @@ class BasketTracker
 
 	private boolean present;
 	private boolean open;
+	private boolean worn;
 	private int used;
 
 	static boolean isBasket(int itemId)
@@ -77,11 +78,15 @@ class BasketTracker
 		return itemId == ItemID.LOG_BASKET_OPEN || itemId == ItemID.FORESTRY_BASKET_OPEN;
 	}
 
-	/** Called whenever the inventory changes, with whether a basket is in it and whether it is open. */
-	void setPresent(boolean present, boolean open)
+	/**
+	 * Called whenever the inventory or worn equipment changes: whether a basket is carried
+	 * (inventory or cape slot), whether it is open, and whether it is the worn one.
+	 */
+	void setPresent(boolean present, boolean open, boolean worn)
 	{
 		this.present = present;
 		this.open = open;
+		this.worn = worn;
 	}
 
 	boolean isPresent()
@@ -92,6 +97,11 @@ class BasketTracker
 	boolean isOpen()
 	{
 		return open;
+	}
+
+	boolean isWorn()
+	{
+		return worn;
 	}
 
 	int getUsed()
@@ -208,6 +218,7 @@ class BasketTracker
 	{
 		present = false;
 		open = false;
+		worn = false;
 		used = 0;
 	}
 }

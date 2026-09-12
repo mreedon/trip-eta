@@ -259,21 +259,20 @@ public class TripEtaPlugin extends Plugin
 	@Subscribe
 	public void onItemContainerChanged(ItemContainerChanged event)
 	{
+		if (event.getContainerId() == InventoryID.WORN)
+		{
+			// Baskets can be worn in the cape slot and still collect logs.
+			rescanBasket();
+			return;
+		}
 		if (event.getContainerId() != InventoryID.INV)
 		{
 			return;
 		}
-		ItemContainer inventory = event.getItemContainer();
-		int now = countOccupied(inventory);
+		int now = countOccupied(event.getItemContainer());
 		int drop = occupiedSlots - now;
 		occupiedSlots = now;
-
-		boolean hadBasket = basket.isPresent();
-		scanForBasket(inventory);
-		if (basket.isPresent() != hadBasket)
-		{
-			log.debug("basket {} inventory ({})", basket.isPresent() ? "entered" : "left", basket.isOpen() ? "open" : "closed");
-		}
+		rescanBasket();
 
 		if (drop < DEPOSIT_DROP)
 		{
@@ -297,7 +296,8 @@ public class TripEtaPlugin extends Plugin
 	{
 		// "Check" on a basket opens an item box, not a chat line; remember the click so the
 		// box that follows can be attributed to the basket and not to some other item.
-		if (CHECK_OPTION.equals(event.getMenuOption()) && BasketTracker.isBasket(event.getItemId()))
+		// A worn basket's Check comes through the equipment tab without an inventory item id.
+		if (CHECK_OPTION.equals(event.getMenuOption()) && (BasketTracker.isBasket(event.getItemId()) || basket.isWorn()))
 		{
 			checkClickedTick = tick;
 		}
@@ -491,26 +491,43 @@ public class TripEtaPlugin extends Plugin
 		ItemContainer inventory = client.getItemContainer(InventoryID.INV);
 		occupiedSlots = inventory == null ? 0 : countOccupied(inventory);
 		occupiedAtTickStart = occupiedSlots;
-		if (inventory != null)
+		rescanBasket();
+	}
+
+	/** Look for a basket in the inventory, then the worn equipment (cape slot). Client thread only. */
+	private void rescanBasket()
+	{
+		boolean hadBasket = basket.isPresent();
+		int found = findBasket(client.getItemContainer(InventoryID.INV));
+		boolean worn = false;
+		if (found < 0)
 		{
-			scanForBasket(inventory);
+			found = findBasket(client.getItemContainer(InventoryID.WORN));
+			worn = found >= 0;
+		}
+		basket.setPresent(found >= 0, found >= 0 && BasketTracker.isOpenBasket(found), worn);
+		if (basket.isPresent() != hadBasket)
+		{
+			log.debug("basket {} ({}{})", basket.isPresent() ? "found" : "gone",
+				basket.isOpen() ? "open" : "closed", basket.isWorn() ? ", worn" : "");
 		}
 	}
 
-	private void scanForBasket(ItemContainer inventory)
+	/** The basket item ID in the container, or -1. */
+	private static int findBasket(ItemContainer container)
 	{
-		boolean present = false;
-		boolean open = false;
-		for (Item item : inventory.getItems())
+		if (container == null)
+		{
+			return -1;
+		}
+		for (Item item : container.getItems())
 		{
 			if (BasketTracker.isBasket(item.getId()))
 			{
-				present = true;
-				open = BasketTracker.isOpenBasket(item.getId());
-				break;
+				return item.getId();
 			}
 		}
-		basket.setPresent(present, open);
+		return -1;
 	}
 
 	private static int countOccupied(ItemContainer container)

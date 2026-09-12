@@ -68,8 +68,9 @@ coin was unlucky", which is what actually happened.
 
 ## Log basket
 
-No setup. If a log basket or forestry basket is in your inventory, open or closed,
-the plugin adds its 28 slots to the trip and follows what is in it:
+No setup. If a log basket or forestry basket is in your inventory or worn in the
+cape slot, open or closed, the plugin adds its 28 slots to the trip and follows
+what is in it:
 
 - a log that arrives without taking an inventory slot went into an open basket,
 - a large inventory drop away from any bank is you filling the basket by hand,

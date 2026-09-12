@@ -96,7 +96,7 @@ class TripEtaOverlay extends OverlayPanel
 		if (basket.isPresent())
 		{
 			panelComponent.getChildren().add(LineComponent.builder()
-				.left(basket.isOpen() ? "Basket (open)" : "Basket")
+				.left("Basket" + (basket.isOpen() ? " (open" : " (closed") + (basket.isWorn() ? ", worn)" : ")"))
 				.right(basket.getUsed() + " / " + BasketTracker.CAPACITY)
 				.rightColor(DIM)
 				.build());
