@@ -88,6 +88,16 @@ class TripEtaOverlay extends OverlayPanel
 			.right(model.getItems() + " / " + total)
 			.build());
 
+		BasketTracker basket = plugin.getBasket();
+		if (basket.isPresent())
+		{
+			panelComponent.getChildren().add(LineComponent.builder()
+				.left(basket.isOpen() ? "Basket (open)" : "Basket")
+				.right(basket.getUsed() + " / " + BasketTracker.CAPACITY)
+				.rightColor(DIM)
+				.build());
+		}
+
 		String etaText;
 		Color etaColor = Color.WHITE;
 		if (model.isFull())

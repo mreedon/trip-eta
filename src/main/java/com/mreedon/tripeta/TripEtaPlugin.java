@@ -62,11 +62,10 @@ import net.runelite.client.util.Text;
 public class TripEtaPlugin extends Plugin
 {
 	private static final int INVENTORY_SIZE = 28;
-	/** An inventory drop of at least this many slots is a deposit, not a manual drop. */
+	/** An inventory drop of at least this many slots is a deposit or a basket fill, not a manual drop. */
 	private static final int DEPOSIT_DROP = 5;
 	/** How long after a bank interface was open a big drop still counts as banking. */
 	private static final int BANK_GRACE_TICKS = 3;
-	private static final String BASKET_EMPTIED = "You empty your basket into the bank.";
 	private static final String INVENTORY_FULL_PREFIX = "Your inventory is too full to hold any more";
 	private static final String PRIOR_KEY_PREFIX = "secondsPerRoll.";
 
@@ -97,6 +96,9 @@ public class TripEtaPlugin extends Plugin
 	@Getter
 	private final TripModel model = new TripModel();
 
+	@Getter
+	private final BasketTracker basket = new BasketTracker();
+
 	/** Whether the gathering animation was playing on the last tick. */
 	@Getter
 	private boolean gathering;
@@ -105,7 +107,6 @@ public class TripEtaPlugin extends Plugin
 	private int occupiedSlots;
 	private int occupiedAtTickStart;
 	private int itemMessagesThisTick;
-	private int basketUsed;
 	private boolean bankOpen;
 	private int lastBankTick = -1000;
 	private int tick;
@@ -186,24 +187,36 @@ public class TripEtaPlugin extends Plugin
 			}
 			else
 			{
-				log.debug("gathering stopped: items={} gatherTicks={} offTicks={} occupied={} basketUsed={}",
-					model.getItems(), model.getGatherTicks(), model.getOffTicks(), occupiedSlots, basketUsed);
+				log.debug("gathering stopped: items={} rolls={} gatherTicks={} offTicks={} occupied={} basket={}/{}",
+					model.getItems(), model.rolls(), model.getGatherTicks(), model.getOffTicks(), occupiedSlots,
+					basket.getUsed(), basket.isPresent() ? BasketTracker.CAPACITY : 0);
 			}
 		}
 		model.tick(gathering);
 
-		// Items that arrived this tick but never showed up in the inventory went into the basket.
+		// Reconcile this tick's chat arrivals against inventory movement. An item that
+		// arrived without taking a slot went into an open basket; a slot gained with no
+		// item arriving came out of the basket.
 		int inventoryGain = Math.max(0, occupiedSlots - occupiedAtTickStart);
 		int toBasket = Math.max(0, itemMessagesThisTick - inventoryGain);
-		if (toBasket > 0 && config.basketCapacity() > 0)
+		int fromBasket = Math.max(0, inventoryGain - itemMessagesThisTick);
+		if (toBasket > 0)
 		{
-			basketUsed = Math.min(config.basketCapacity(), basketUsed + toBasket);
-			log.debug("basket took {} item(s): basketUsed={} of {} (messages={} inventoryGain={})",
-				toBasket, basketUsed, config.basketCapacity(), itemMessagesThisTick, inventoryGain);
+			if (basket.isPresent())
+			{
+				basket.onItemsWithoutInventoryGain(toBasket);
+				log.debug("basket took {} item(s): {}/{} (messages={} inventoryGain={})",
+					toBasket, basket.getUsed(), BasketTracker.CAPACITY, itemMessagesThisTick, inventoryGain);
+			}
+			else
+			{
+				log.debug("{} item message(s) with no inventory gain and no basket in inventory", toBasket);
+			}
 		}
-		else if (toBasket > 0)
+		else if (fromBasket > 0 && basket.isPresent() && basket.getUsed() > 0)
 		{
-			log.debug("{} item message(s) with no inventory gain and no basket configured", toBasket);
+			basket.onInventoryGainWithoutItems(fromBasket);
+			log.debug("basket gave up {} item(s): {}/{}", fromBasket, basket.getUsed(), BasketTracker.CAPACITY);
 		}
 		itemMessagesThisTick = 0;
 		occupiedAtTickStart = occupiedSlots;
@@ -218,8 +231,9 @@ public class TripEtaPlugin extends Plugin
 			if (!model.isFull())
 			{
 				model.markFull();
-				log.debug("full: items={} gatherTicks={} offTicks={} occupied={} basketUsed={}",
-					model.getItems(), model.getGatherTicks(), model.getOffTicks(), occupiedSlots, basketUsed);
+				log.debug("full: items={} rolls={} gatherTicks={} offTicks={} occupied={} basket={}/{}",
+					model.getItems(), model.rolls(), model.getGatherTicks(), model.getOffTicks(), occupiedSlots,
+					basket.getUsed(), basket.isPresent() ? BasketTracker.CAPACITY : 0);
 				onFull();
 			}
 			return;
@@ -234,24 +248,32 @@ public class TripEtaPlugin extends Plugin
 		{
 			return;
 		}
-		int now = countOccupied(event.getItemContainer());
+		ItemContainer inventory = event.getItemContainer();
+		int now = countOccupied(inventory);
 		int drop = occupiedSlots - now;
 		occupiedSlots = now;
+
+		boolean hadBasket = basket.isPresent();
+		scanForBasket(inventory);
+		if (basket.isPresent() != hadBasket)
+		{
+			log.debug("basket {} inventory ({})", basket.isPresent() ? "entered" : "left", basket.isOpen() ? "open" : "closed");
+		}
+
 		if (drop < DEPOSIT_DROP)
 		{
 			return;
 		}
 		boolean banking = bankOpen || (tick - lastBankTick) <= BANK_GRACE_TICKS;
 		log.debug("inventory dropped by {} to {} occupied; bankOpen={} ticksSinceBank={} -> {}",
-			drop, now, bankOpen, tick - lastBankTick, banking ? "deposit" : "manual basket fill");
+			drop, now, bankOpen, tick - lastBankTick, banking ? "deposit" : (basket.isPresent() ? "manual basket fill" : "ignored"));
 		if (banking)
 		{
 			finishTrip();
 		}
-		else if (config.basketCapacity() > 0)
+		else
 		{
-			// A big drop away from a bank is the player filling the basket by hand.
-			basketUsed = Math.min(config.basketCapacity(), basketUsed + drop);
+			basket.onManualFill(drop);
 		}
 	}
 
@@ -286,11 +308,15 @@ public class TripEtaPlugin extends Plugin
 		}
 		String message = Text.removeTags(event.getMessage());
 
-		if (BASKET_EMPTIED.equals(message))
+		BasketTracker.Outcome basketOutcome = basket.onMessage(message);
+		if (basketOutcome != BasketTracker.Outcome.NONE)
 		{
-			basketUsed = 0;
-			lastBankTick = tick;
-			finishTrip();
+			log.debug("basket message \"{}\" -> {}/{}", message, basket.getUsed(), BasketTracker.CAPACITY);
+			if (basketOutcome == BasketTracker.Outcome.EMPTIED_TO_BANK)
+			{
+				lastBankTick = tick;
+				finishTrip();
+			}
 			return;
 		}
 		if (message.startsWith(INVENTORY_FULL_PREFIX))
@@ -330,20 +356,19 @@ public class TripEtaPlugin extends Plugin
 		}
 	}
 
-	/** Free inventory slots plus whatever the configured basket can still take. */
+	/** Free inventory slots plus whatever a basket in the inventory can still take. */
 	int remainingCapacity()
 	{
-		int free = Math.max(0, INVENTORY_SIZE - occupiedSlots);
-		int basket = config.basketCapacity() > 0 ? Math.max(0, config.basketCapacity() - basketUsed) : 0;
-		return free + basket;
+		return Math.max(0, INVENTORY_SIZE - occupiedSlots) + basket.remaining();
 	}
 
 	private void startTrip(Activity activity)
 	{
 		model.setPrior(priors.getOrDefault(activity, 0.0));
 		model.start(activity, System.currentTimeMillis());
-		log.debug("trip started: {} free={} basketRemaining={} prior={}s/roll itemChance={}",
-			activity, INVENTORY_SIZE - occupiedSlots, remainingCapacity() - (INVENTORY_SIZE - occupiedSlots),
+		log.debug("trip started: {} free={} basket={} prior={}s/roll itemChance={}",
+			activity, INVENTORY_SIZE - occupiedSlots,
+			basket.isPresent() ? basket.getUsed() + "/" + BasketTracker.CAPACITY + (basket.isOpen() ? " open" : " closed") : "none",
 			String.format("%.2f", model.getPrior()), model.itemChance());
 	}
 
@@ -425,6 +450,26 @@ public class TripEtaPlugin extends Plugin
 		ItemContainer inventory = client.getItemContainer(InventoryID.INV);
 		occupiedSlots = inventory == null ? 0 : countOccupied(inventory);
 		occupiedAtTickStart = occupiedSlots;
+		if (inventory != null)
+		{
+			scanForBasket(inventory);
+		}
+	}
+
+	private void scanForBasket(ItemContainer inventory)
+	{
+		boolean present = false;
+		boolean open = false;
+		for (Item item : inventory.getItems())
+		{
+			if (BasketTracker.isBasket(item.getId()))
+			{
+				present = true;
+				open = BasketTracker.isOpenBasket(item.getId());
+				break;
+			}
+		}
+		basket.setPresent(present, open);
 	}
 
 	private static int countOccupied(ItemContainer container)
@@ -459,19 +504,19 @@ public class TripEtaPlugin extends Plugin
 		log.debug("priors loaded: {}", priors);
 	}
 
-	private void savePrior(Activity activity, double secondsPerItem)
+	private void savePrior(Activity activity, double secondsPerRoll)
 	{
-		configManager.setRSProfileConfiguration(TripEtaConfig.GROUP, PRIOR_KEY_PREFIX + activity.name(), secondsPerItem);
+		configManager.setRSProfileConfiguration(TripEtaConfig.GROUP, PRIOR_KEY_PREFIX + activity.name(), secondsPerRoll);
 	}
 
 	private void resetAll()
 	{
 		model.reset();
+		basket.reset();
 		gathering = false;
 		occupiedSlots = 0;
 		occupiedAtTickStart = 0;
 		itemMessagesThisTick = 0;
-		basketUsed = 0;
 		bankOpen = false;
 	}
 }

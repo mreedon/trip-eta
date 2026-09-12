@@ -44,18 +44,6 @@ public interface TripEtaConfig extends Config
 	String notifications = "notifications";
 
 	@ConfigItem(
-		keyName = "basketCapacity",
-		name = "Extra capacity (log basket)",
-		description = "How many extra logs your log basket holds on top of the inventory. Leave at 0 if you don't use one.",
-		position = 1
-	)
-	@Range(min = 0, max = 28)
-	default int basketCapacity()
-	{
-		return 0;
-	}
-
-	@ConfigItem(
 		keyName = "showRange",
 		name = "Show a range",
 		description = "Show a low to high range instead of a single number. The range tightens as the trip goes on.",

@@ -74,8 +74,11 @@ enum Activity
 			AnimationID.FORESTRY_2H_AXE_CHOPPING_CRYSTAL_INACTIVE,
 			AnimationID.FORESTRY_2H_AXE_CHOPPING_3A,
 		},
-		// Same shape as the core Woodcutting plugin's pattern.
-		Pattern.compile("^You get (?:some|an)[\\w' ]+(?:logs?|mushrooms)\\.$"),
+		// Same shape as the core Woodcutting plugin's pattern, plus the two bonus-log lines
+		// (Kandarin headgear, nature offerings) that hand over a log without a "You get" line.
+		Pattern.compile("^(?:You get (?:some|an)[\\w' ]+(?:logs?|mushrooms)"
+			+ "|Your Kandarin headgear provides you with an additional log"
+			+ "|The nature offerings enabled you to chop an extra log)\\.$"),
 		// Felling axe with forester's rations: a successful chop that yields no log.
 		Pattern.compile("^You strike a clean cut without gathering any material\\.$")
 	);

@@ -68,11 +68,16 @@ coin was unlucky", which is what actually happened.
 
 ## Log basket
 
-Set **Extra capacity (log basket)** to how many logs your basket holds (28 for a
-full one, or whatever is left after you keep some). The plugin then counts a log
-that arrives without taking an inventory slot as having gone into an open basket,
-treats a large inventory drop away from a bank as you filling the basket by hand,
-and resets when it sees "You empty your basket into the bank."
+No setup. If a log basket or forestry basket is in your inventory, open or closed,
+the plugin adds its 28 slots to the trip and follows what is in it:
+
+- a log that arrives without taking an inventory slot went into an open basket,
+- a large inventory drop away from any bank is you filling the basket by hand,
+- "The basket is full", "Your basket is empty", the emptied-to-bank and
+  emptied-to-inventory lines, and the "Check" summary all set the count directly.
+
+After logging in the contents are unknown and assumed empty. If that is wrong,
+right-click the basket and *Check* once and the plugin picks up the real number.
 
 ## Privacy
 
