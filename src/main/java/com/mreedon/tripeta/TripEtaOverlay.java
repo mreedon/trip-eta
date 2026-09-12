@@ -41,6 +41,7 @@ class TripEtaOverlay extends OverlayPanel
 	private static final Color OFF_COLOR = new Color(255, 170, 60);
 	private static final Color FULL_COLOR = new Color(255, 90, 90);
 	private static final Color DIM = new Color(170, 170, 170);
+	private static final int PANEL_WIDTH = 170;
 
 	private final TripEtaPlugin plugin;
 	private final TripEtaConfig config;
@@ -51,6 +52,9 @@ class TripEtaOverlay extends OverlayPanel
 		this.plugin = plugin;
 		this.config = config;
 		setPosition(OverlayPosition.TOP_LEFT);
+		// Wide enough that the longest line ("Range" + "10:15 to 15:20") never wraps; the
+		// default panel width made the range flip between one and two lines as it changed.
+		panelComponent.setPreferredSize(new Dimension(PANEL_WIDTH, 0));
 	}
 
 	@Override
@@ -98,29 +102,24 @@ class TripEtaOverlay extends OverlayPanel
 				.build());
 		}
 
+		// Fixed line set while a trip runs, so the panel never changes height mid-trip:
+		// estimate, range (when enabled), off-tree time, bar.
 		String etaText;
 		Color etaColor = Color.WHITE;
+		TripModel.Estimate est = model.isFull() ? null : model.estimate(remaining);
 		if (model.isFull())
 		{
 			etaText = "Full";
 			etaColor = FULL_COLOR;
 		}
+		else if (est == null)
+		{
+			etaText = "measuring";
+			etaColor = DIM;
+		}
 		else
 		{
-			TripModel.Estimate est = model.estimate(remaining);
-			if (est == null)
-			{
-				etaText = "measuring";
-				etaColor = DIM;
-			}
-			else if (config.showRange())
-			{
-				etaText = TripModel.formatSeconds(est.lowSeconds) + " to " + TripModel.formatSeconds(est.highSeconds);
-			}
-			else
-			{
-				etaText = TripModel.formatSeconds(est.midSeconds);
-			}
+			etaText = TripModel.formatSeconds(est.midSeconds);
 		}
 		panelComponent.getChildren().add(LineComponent.builder()
 			.left(activity.verb + " left")
@@ -128,14 +127,23 @@ class TripEtaOverlay extends OverlayPanel
 			.rightColor(etaColor)
 			.build());
 
-		if (!plugin.isGathering() && !model.isFull())
+		if (config.showRange())
 		{
 			panelComponent.getChildren().add(LineComponent.builder()
-				.left(activity.offLabel)
-				.right(TripModel.formatSeconds(model.getOffStreakTicks() * TripModel.TICK_SECONDS))
-				.rightColor(OFF_COLOR)
+				.left("Range")
+				.leftColor(DIM)
+				.right(est == null ? "-" : TripModel.formatSeconds(est.lowSeconds) + " to " + TripModel.formatSeconds(est.highSeconds))
+				.rightColor(DIM)
 				.build());
 		}
+
+		boolean off = !plugin.isGathering() && !model.isFull();
+		panelComponent.getChildren().add(LineComponent.builder()
+			.left(activity.offLabel)
+			.leftColor(off ? Color.WHITE : DIM)
+			.right(off ? TripModel.formatSeconds(model.getOffStreakTicks() * TripModel.TICK_SECONDS) : "-")
+			.rightColor(off ? OFF_COLOR : DIM)
+			.build());
 
 		ProgressBarComponent bar = new ProgressBarComponent();
 		bar.setMinimum(0);
