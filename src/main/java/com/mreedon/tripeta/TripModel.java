@@ -57,8 +57,8 @@ class TripModel
 	static final int MIN_ROLLS_FOR_ESTIMATE = 2;
 	/** Only trips with at least this many successful rolls teach the prior. */
 	static final int MIN_ROLLS_TO_LEARN = 10;
-	/** Cap on how wide the range can get, as a fraction of the midpoint. */
-	static final double MAX_RELATIVE_SPREAD = 0.6;
+	/** Cap on the band's stretch factor: high = mid * (1 + s), low = mid / (1 + s). */
+	static final double MAX_RELATIVE_SPREAD = 0.8;
 	/** One-sided 90% z, used for the range. */
 	private static final double Z = 1.28;
 
@@ -227,16 +227,45 @@ class TripModel
 		}
 		double mid = remaining * spi;
 
-		// Two sources of spread, combined in quadrature:
-		// the roll rate is known to about 1/sqrt(sample) (arrivals are near geometric),
-		// and the number of rolls needed for the remaining items is negative binomial
-		// in the item chance, whose relative sd is sqrt((1-p)/remaining).
-		int effectiveSample = n + (prior > 0 ? PRIOR_WEIGHT : 0);
-		double rateSpread = Z / Math.sqrt(Math.max(1, effectiveSample));
+		// Two sources of spread, combined in quadrature.
+		//
+		// Estimation: how well the rate is known. The sample mean of n geometric waits
+		// has relative sd sqrt(1-q)/sqrt(n), where q is the per-roll success chance.
+		//
+		// Process: even with the rate known exactly, the wait for the remaining items is
+		// random. Each item is a geometric wait with per-roll chance q*p (a success that
+		// also yields an item), so the sum over `remaining` items has relative sd
+		// sqrt(1-q*p)/sqrt(remaining). On slow trees q is small and this term dominates
+		// late in the trip: about 20% with 26 left, about 45% with 5 left.
+		//
+		// q comes from the measured rate: the game rolls every rollTicks, so
+		// q = rollSeconds / secondsPerRoll. Unknown cadence (0) is read as q -> 0, the
+		// conservative end.
 		double p = itemChance();
-		double coinSpread = p < 1 ? Z * Math.sqrt((1 - p) / Math.max(1, remaining)) : 0;
-		double spread = Math.min(MAX_RELATIVE_SPREAD, Math.sqrt(rateSpread * rateSpread + coinSpread * coinSpread));
-		return new Estimate(mid * (1 - spread), mid, mid * (1 + spread), n);
+		double q = perRollSuccessChance();
+		int effectiveSample = n + (prior > 0 ? PRIOR_WEIGHT : 0);
+		double rateSpread = Z * Math.sqrt(1 - q) / Math.sqrt(Math.max(1, effectiveSample));
+		double processSpread = Z * Math.sqrt(1 - q * p) / Math.sqrt(Math.max(1, remaining));
+		double s = Math.min(MAX_RELATIVE_SPREAD, Math.sqrt(rateSpread * rateSpread + processSpread * processSpread));
+		// The wait is right-skewed (negative binomial), so the band is multiplicative:
+		// the high side stretches further than the low side shrinks, and the low side
+		// can never reach zero.
+		return new Estimate(mid / (1 + s), mid, mid * (1 + s), n);
+	}
+
+	/** Chance a single game roll succeeds, from the measured rate; 0 if the cadence is unknown. */
+	double perRollSuccessChance()
+	{
+		if (activity == null || activity.rollTicks <= 0)
+		{
+			return 0;
+		}
+		double spr = secondsPerRoll();
+		if (Double.isNaN(spr) || spr <= 0)
+		{
+			return 0;
+		}
+		return Math.min(1.0, activity.rollTicks * TICK_SECONDS / spr);
 	}
 
 	/**

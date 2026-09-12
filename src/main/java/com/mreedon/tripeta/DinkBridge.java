@@ -164,6 +164,7 @@ class DinkBridge
 		m.put("rolls", model.rolls());
 		m.put("rollsWithoutItem", model.getRollsWithoutItem());
 		m.put("itemChance", model.itemChance());
+		m.put("perRollSuccessChance", model.perRollSuccessChance());
 		m.put("secondsPerRoll", model.secondsPerRoll());
 		m.put("secondsPerItem", model.secondsPerItem());
 		m.put("prior", model.getPrior());

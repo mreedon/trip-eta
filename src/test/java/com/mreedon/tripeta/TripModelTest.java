@@ -138,6 +138,52 @@ public class TripModelTest
 	}
 
 	@Test
+	public void rangeWidensAsFewerItemsRemain()
+	{
+		// Rate well known (many rolls), so the process term is what is left: the wait
+		// for 5 more items is far less certain, relatively, than the wait for 30.
+		TripModel m = started();
+		for (int i = 0; i < 40; i++)
+		{
+			gather(m, 30); // 18 s per roll -> q = 2.4/18
+			m.onItem(Activity.WOODCUTTING, 0);
+		}
+		TripModel.Estimate far = m.estimate(30);
+		TripModel.Estimate near = m.estimate(5);
+		double farRel = (far.highSeconds - far.lowSeconds) / far.midSeconds;
+		double nearRel = (near.highSeconds - near.lowSeconds) / near.midSeconds;
+		assertTrue(nearRel > farRel);
+		// sqrt(1-q)/sqrt(5) with q = 0.133 is ~0.42 relative sd, times z 1.28 -> s ~ 0.54,
+		// plus a small rate term; the band must reflect that scale, not the old ~16%.
+		assertTrue(nearRel > 0.8);
+	}
+
+	@Test
+	public void rangeIsMultiplicativeAndNeverReachesZero()
+	{
+		TripModel m = started();
+		gather(m, 10);
+		m.onItem(Activity.WOODCUTTING, 0);
+		m.onItem(Activity.WOODCUTTING, 0);
+		TripModel.Estimate est = m.estimate(1);
+		assertTrue(est.lowSeconds > 0);
+		assertTrue(est.highSeconds - est.midSeconds > est.midSeconds - est.lowSeconds);
+		assertEquals(est.midSeconds * est.midSeconds, est.lowSeconds * est.highSeconds, 1e-6);
+	}
+
+	@Test
+	public void perRollSuccessChanceComesFromTheMeasuredRate()
+	{
+		TripModel m = started();
+		gather(m, 40); // 24 s for 2 rolls = 12 s per roll -> q = 2.4/12 = 0.2
+		m.onItem(Activity.WOODCUTTING, 0);
+		m.onItem(Activity.WOODCUTTING, 0);
+		assertEquals(0.2, m.perRollSuccessChance(), EPS);
+		TripModel fresh = new TripModel();
+		assertEquals(0.0, fresh.perRollSuccessChance(), EPS);
+	}
+
+	@Test
 	public void cleanCutsCountAsRollsAndApplyTheKnownItemChance()
 	{
 		TripModel m = started();

@@ -31,8 +31,17 @@ So the plugin keeps two clocks:
 
 The estimate is `items still needed × seconds of chopping per item`. The rate comes
 from this trip, blended with what earlier trips on this account taught it, so the
-first minute of a trip is not wild. The range reflects how many logs the rate is
-based on: wide after two logs, narrow after twenty.
+first minute of a trip is not wild.
+
+The range carries two kinds of uncertainty. How well the rate is known, which
+shrinks as the trip goes on. And plain luck: even with the rate known exactly, the
+wait for the next five logs is far less certain, relatively, than the wait for the
+next thirty, because each log is its own dice roll. The game rolls once every four
+ticks, so the per-roll odds fall straight out of the measured rate, and the band is
+built from them. That is why the range gets wider in relative terms near the end of a
+trip: it is telling the truth about the last few logs. The band is lopsided on
+purpose, stretching further above the estimate than below, since a run of bad luck
+can take much longer than a run of good luck can save.
 
 ### Clean cuts
 

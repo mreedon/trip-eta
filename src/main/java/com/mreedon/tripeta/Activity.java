@@ -45,6 +45,10 @@ enum Activity
 		"Off tree",
 		// Felling axe with forester's rations: one successful chop in five is a clean cut with no log.
 		0.8,
+		// The game rolls for a log once every 4 ticks; the axe changes the success chance,
+		// not the cadence. Confirmed from 9,848 chop-to-chop gaps in the author's own log:
+		// 96% sit within 15% of a multiple of 2.4 s (a uniform spread would give 30%).
+		4,
 		new int[]{
 			AnimationID.HUMAN_WOODCUTTING_BRONZE_AXE,
 			AnimationID.HUMAN_WOODCUTTING_IRON_AXE,
@@ -91,16 +95,19 @@ enum Activity
 	final String offLabel;
 	/** Chance a successful roll yields an item once the no-item outcome has been observed. */
 	final double itemChanceWithMisses;
+	/** Game ticks between the game's success rolls for this activity; 0 if not known. */
+	final int rollTicks;
 	private final Set<Integer> animations;
 	private final Pattern itemMessage;
 	private final Pattern rollWithoutItemMessage;
 
-	Activity(String verb, String itemNoun, String offLabel, double itemChanceWithMisses, int[] animationIds, Pattern itemMessage, Pattern rollWithoutItemMessage)
+	Activity(String verb, String itemNoun, String offLabel, double itemChanceWithMisses, int rollTicks, int[] animationIds, Pattern itemMessage, Pattern rollWithoutItemMessage)
 	{
 		this.verb = verb;
 		this.itemNoun = itemNoun;
 		this.offLabel = offLabel;
 		this.itemChanceWithMisses = itemChanceWithMisses;
+		this.rollTicks = rollTicks;
 		Set<Integer> ids = new HashSet<>();
 		for (int id : animationIds)
 		{
