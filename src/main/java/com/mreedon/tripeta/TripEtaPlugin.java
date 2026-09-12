@@ -68,7 +68,7 @@ public class TripEtaPlugin extends Plugin
 	private static final int BANK_GRACE_TICKS = 3;
 	private static final String BASKET_EMPTIED = "You empty your basket into the bank.";
 	private static final String INVENTORY_FULL_PREFIX = "Your inventory is too full to hold any more";
-	private static final String PRIOR_KEY_PREFIX = "secondsPerItem.";
+	private static final String PRIOR_KEY_PREFIX = "secondsPerRoll.";
 
 	@Inject
 	private Client client;
@@ -316,9 +316,9 @@ public class TripEtaPlugin extends Plugin
 			{
 				int remaining = remainingCapacity();
 				TripModel.Estimate est = model.estimate(remaining);
-				log.debug("item #{}: remaining={} gatherTicks={} offTicks={} spi={} eta={}",
-					model.getItems(), remaining, model.getGatherTicks(), model.getOffTicks(),
-					String.format("%.1f", model.secondsPerItem()),
+				log.debug("item #{} (roll #{}): remaining={} gatherTicks={} offTicks={} s/roll={} s/item={} p={} eta={}",
+					model.getItems(), model.rolls(), remaining, model.getGatherTicks(), model.getOffTicks(),
+					String.format("%.1f", model.secondsPerRoll()), String.format("%.1f", model.secondsPerItem()), model.itemChance(),
 					est == null ? "none" : TripModel.formatSeconds(est.lowSeconds) + "/" + TripModel.formatSeconds(est.midSeconds) + "/" + TripModel.formatSeconds(est.highSeconds));
 			}
 			return;
@@ -342,8 +342,9 @@ public class TripEtaPlugin extends Plugin
 	{
 		model.setPrior(priors.getOrDefault(activity, 0.0));
 		model.start(activity, System.currentTimeMillis());
-		log.debug("trip started: {} free={} basketRemaining={} prior={}s/item",
-			activity, INVENTORY_SIZE - occupiedSlots, remainingCapacity() - (INVENTORY_SIZE - occupiedSlots), model.getPrior());
+		log.debug("trip started: {} free={} basketRemaining={} prior={}s/roll itemChance={}",
+			activity, INVENTORY_SIZE - occupiedSlots, remainingCapacity() - (INVENTORY_SIZE - occupiedSlots),
+			String.format("%.2f", model.getPrior()), model.itemChance());
 	}
 
 	private void finishTrip()
@@ -358,13 +359,15 @@ public class TripEtaPlugin extends Plugin
 			dink.notifyTripSummary(model);
 		}
 		int items = model.getItems();
+		int rolls = model.rolls();
 		double prior = model.finish();
-		if (prior > 0 && items >= TripModel.MIN_ITEMS_TO_LEARN)
+		if (prior > 0 && rolls >= TripModel.MIN_ROLLS_TO_LEARN)
 		{
 			priors.put(activity, prior);
 			savePrior(activity, prior);
 		}
-		log.debug("trip finished: {} items={} prior now {}s/item", activity, items, prior);
+		log.debug("trip finished: {} items={} rolls={} prior now {}s/roll, misses seen={}",
+			activity, items, rolls, String.format("%.2f", prior), model.isMissesSeenBefore());
 	}
 
 	private void checkLead(int remaining)

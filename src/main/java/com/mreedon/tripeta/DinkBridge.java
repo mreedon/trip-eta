@@ -67,7 +67,7 @@ class DinkBridge
 		List<Map<String, Object>> fields = new ArrayList<>();
 		fields.add(field("Left", remaining + " " + a.itemNoun));
 		fields.add(field(a.verb + " left", TripModel.formatSeconds(est.lowSeconds) + " to " + TripModel.formatSeconds(est.highSeconds)));
-		fields.add(field("Rate", String.format("%.1f s per item", model.secondsPerItem())));
+		fields.add(field("Rate", rateText(model)));
 		if (offSeconds > 0)
 		{
 			fields.add(field(a.offLabel, TripModel.formatSeconds(offSeconds)));
@@ -141,6 +141,16 @@ class DinkBridge
 		return data;
 	}
 
+	private static String rateText(TripModel model)
+	{
+		if (model.itemChance() < 1)
+		{
+			return String.format("%.1f s per item (%.1f s per chop, %d clean cuts)",
+				model.secondsPerItem(), model.secondsPerRoll(), model.getRollsWithoutItem());
+		}
+		return String.format("%.1f s per item", model.secondsPerItem());
+	}
+
 	private static Map<String, Object> metadata(String event, TripModel model, TripModel.Estimate est, int remaining, double offSeconds)
 	{
 		Map<String, Object> m = new HashMap<>();
@@ -151,7 +161,10 @@ class DinkBridge
 		m.put("gatherTicks", model.getGatherTicks());
 		m.put("offTicks", model.getOffTicks());
 		m.put("offStreakSeconds", offSeconds);
+		m.put("rolls", model.rolls());
 		m.put("rollsWithoutItem", model.getRollsWithoutItem());
+		m.put("itemChance", model.itemChance());
+		m.put("secondsPerRoll", model.secondsPerRoll());
 		m.put("secondsPerItem", model.secondsPerItem());
 		m.put("prior", model.getPrior());
 		m.put("tripStartedAt", model.getStartedAtMs());

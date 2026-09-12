@@ -43,6 +43,8 @@ enum Activity
 		"Chopping",
 		"logs",
 		"Off tree",
+		// Felling axe with forester's rations: one successful chop in five is a clean cut with no log.
+		0.8,
 		new int[]{
 			AnimationID.HUMAN_WOODCUTTING_BRONZE_AXE,
 			AnimationID.HUMAN_WOODCUTTING_IRON_AXE,
@@ -84,15 +86,18 @@ enum Activity
 	final String itemNoun;
 	/** Label for time spent not gathering, e.g. "Off tree". */
 	final String offLabel;
+	/** Chance a successful roll yields an item once the no-item outcome has been observed. */
+	final double itemChanceWithMisses;
 	private final Set<Integer> animations;
 	private final Pattern itemMessage;
 	private final Pattern rollWithoutItemMessage;
 
-	Activity(String verb, String itemNoun, String offLabel, int[] animationIds, Pattern itemMessage, Pattern rollWithoutItemMessage)
+	Activity(String verb, String itemNoun, String offLabel, double itemChanceWithMisses, int[] animationIds, Pattern itemMessage, Pattern rollWithoutItemMessage)
 	{
 		this.verb = verb;
 		this.itemNoun = itemNoun;
 		this.offLabel = offLabel;
+		this.itemChanceWithMisses = itemChanceWithMisses;
 		Set<Integer> ids = new HashSet<>();
 		for (int id : animationIds)
 		{

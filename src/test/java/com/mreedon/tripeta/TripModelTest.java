@@ -137,6 +137,81 @@ public class TripModelTest
 	}
 
 	@Test
+	public void cleanCutsCountAsRollsAndApplyTheKnownItemChance()
+	{
+		TripModel m = started();
+		gather(m, 20); // 12 s
+		for (int i = 0; i < 4; i++)
+		{
+			m.onItem(Activity.WOODCUTTING, 0);
+		}
+		for (int i = 0; i < 3; i++)
+		{
+			m.onRollWithoutItem();
+		}
+		assertEquals(7, m.rolls());
+		assertEquals(0.8, m.itemChance(), EPS);
+		assertEquals(12.0 / 7, m.secondsPerRoll(), EPS);
+		// per item = per roll / 0.8, not the naive 12 s / 4 items = 3.0
+		assertEquals(12.0 / 7 / 0.8, m.secondsPerItem(), EPS);
+	}
+
+	@Test
+	public void aRunOfCleanCutsDoesNotInflateTheEstimateLikeSilenceWould()
+	{
+		// Both models know misses happen, chop for the same time, get the same four logs.
+		TripModel withCuts = new TripModel();
+		withCuts.setMissesSeenBefore(true);
+		withCuts.start(Activity.WOODCUTTING, 0);
+		TripModel silent = new TripModel();
+		silent.setMissesSeenBefore(true);
+		silent.start(Activity.WOODCUTTING, 0);
+		for (TripModel m : new TripModel[]{withCuts, silent})
+		{
+			gather(m, 20);
+			for (int i = 0; i < 4; i++)
+			{
+				m.onItem(Activity.WOODCUTTING, 0);
+			}
+			gather(m, 9);
+		}
+		// Only one of them saw three clean cuts in those last nine ticks.
+		for (int i = 0; i < 3; i++)
+		{
+			withCuts.onRollWithoutItem();
+		}
+		// The clean cuts are evidence the tree is giving successes; silence is not.
+		assertTrue(withCuts.secondsPerItem() < silent.secondsPerItem());
+		assertEquals((29 * 0.6) / 7 / 0.8, withCuts.secondsPerItem(), EPS);
+		assertEquals((29 * 0.6) / 4 / 0.8, silent.secondsPerItem(), EPS);
+	}
+
+	@Test
+	public void itemChanceIsOneUntilAMissIsSeen()
+	{
+		TripModel m = started();
+		assertEquals(1.0, m.itemChance(), EPS);
+		m.onRollWithoutItem();
+		assertEquals(0.8, m.itemChance(), EPS);
+	}
+
+	@Test
+	public void finishRemembersWhetherMissesHappened()
+	{
+		TripModel m = started();
+		gather(m, 100);
+		for (int i = 0; i < 9; i++)
+		{
+			m.onItem(Activity.WOODCUTTING, 0);
+		}
+		m.onRollWithoutItem(); // 10 rolls, enough to learn
+		m.finish();
+		assertTrue(m.isMissesSeenBefore());
+		m.start(Activity.WOODCUTTING, 0);
+		assertEquals(0.8, m.itemChance(), EPS);
+	}
+
+	@Test
 	public void itemArrivalStartsTripWhenAnimationMissed()
 	{
 		TripModel m = new TripModel();

@@ -34,9 +34,21 @@ from this trip, blended with what earlier trips on this account taught it, so th
 first minute of a trip is not wild. The range reflects how many logs the rate is
 based on: wide after two logs, narrow after twenty.
 
-The felling axe's "clean cut" outcome (a successful chop that yields no log because
-you carry forester's rations) is counted as a roll but not an item, so it lands in
-the rate naturally.
+### Clean cuts
+
+With a felling axe and forester's rations, one successful chop in five is a "clean
+cut" that yields no log. Two different random things are going on there, and the
+plugin keeps them apart:
+
+- **How often a chop succeeds** depends on your level, axe and tree. That is what the
+  trip measures, and every success counts, log or not.
+- **Whether a success hands over a log** is a fixed one-in-five coin with no memory.
+  Three clean cuts in a row say nothing about the next chop, so the plugin applies
+  the known 80% instead of re-guessing it from a handful of flips.
+
+The upshot is that a run of clean cuts does not push the estimate out the way a
+silent stretch of chopping would. It is read as "the tree is giving successes, the
+coin was unlucky", which is what actually happened.
 
 ## Notifications
 
