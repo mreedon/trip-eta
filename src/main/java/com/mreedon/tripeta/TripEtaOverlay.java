@@ -57,6 +57,12 @@ class TripEtaOverlay extends OverlayPanel
 	public Dimension render(Graphics2D graphics)
 	{
 		TripModel model = plugin.getModel();
+		// A full inventory is the end of the useful part of the trip: nothing left to
+		// estimate, and the game already says so. Hide along with the between-trips state.
+		if (config.hideWhenIdle() && model.isFull())
+		{
+			return null;
+		}
 		if (!model.isActive())
 		{
 			if (config.hideWhenIdle())

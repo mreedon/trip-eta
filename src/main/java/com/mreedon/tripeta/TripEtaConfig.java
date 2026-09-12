@@ -69,7 +69,7 @@ public interface TripEtaConfig extends Config
 	@ConfigItem(
 		keyName = "hideWhenIdle",
 		name = "Hide overlay between trips",
-		description = "Only draw the overlay while a trip is in progress",
+		description = "Only draw the overlay while there is something left to estimate: hidden before the first chop and once the inventory is full",
 		position = 3
 	)
 	default boolean hideWhenIdle()
