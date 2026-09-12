@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
 
@@ -44,6 +45,7 @@ import net.runelite.client.events.PluginMessage;
  * serialised into the webhook body untouched, so a custom handler gets the raw trip
  * numbers and not just the sentence.
  */
+@Slf4j
 @Singleton
 class DinkBridge
 {
@@ -124,6 +126,7 @@ class DinkBridge
 
 	private void post(Map<String, Object> data)
 	{
+		log.debug("dink request: {}", data.get("text"));
 		eventBus.post(new PluginMessage(NAMESPACE, NAME, data));
 	}
 

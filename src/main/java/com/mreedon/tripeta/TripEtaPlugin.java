@@ -171,10 +171,24 @@ public class TripEtaPlugin extends Plugin
 		}
 
 		Activity activity = Activity.forAnimation(local.getAnimation());
+		boolean wasGathering = gathering;
 		gathering = activity != null;
 		if (gathering && !model.isActive())
 		{
 			startTrip(activity);
+		}
+		if (gathering != wasGathering && model.isActive())
+		{
+			if (gathering)
+			{
+				log.debug("gathering resumed after {} off ({} anim {})",
+					TripModel.formatSeconds(model.getOffStreakTicks() * TripModel.TICK_SECONDS), activity, local.getAnimation());
+			}
+			else
+			{
+				log.debug("gathering stopped: items={} gatherTicks={} offTicks={} occupied={} basketUsed={}",
+					model.getItems(), model.getGatherTicks(), model.getOffTicks(), occupiedSlots, basketUsed);
+			}
 		}
 		model.tick(gathering);
 
@@ -184,6 +198,12 @@ public class TripEtaPlugin extends Plugin
 		if (toBasket > 0 && config.basketCapacity() > 0)
 		{
 			basketUsed = Math.min(config.basketCapacity(), basketUsed + toBasket);
+			log.debug("basket took {} item(s): basketUsed={} of {} (messages={} inventoryGain={})",
+				toBasket, basketUsed, config.basketCapacity(), itemMessagesThisTick, inventoryGain);
+		}
+		else if (toBasket > 0)
+		{
+			log.debug("{} item message(s) with no inventory gain and no basket configured", toBasket);
 		}
 		itemMessagesThisTick = 0;
 		occupiedAtTickStart = occupiedSlots;
@@ -198,6 +218,8 @@ public class TripEtaPlugin extends Plugin
 			if (!model.isFull())
 			{
 				model.markFull();
+				log.debug("full: items={} gatherTicks={} offTicks={} occupied={} basketUsed={}",
+					model.getItems(), model.getGatherTicks(), model.getOffTicks(), occupiedSlots, basketUsed);
 				onFull();
 			}
 			return;
@@ -220,6 +242,8 @@ public class TripEtaPlugin extends Plugin
 			return;
 		}
 		boolean banking = bankOpen || (tick - lastBankTick) <= BANK_GRACE_TICKS;
+		log.debug("inventory dropped by {} to {} occupied; bankOpen={} ticksSinceBank={} -> {}",
+			drop, now, bankOpen, tick - lastBankTick, banking ? "deposit" : "manual basket fill");
 		if (banking)
 		{
 			finishTrip();
@@ -238,6 +262,7 @@ public class TripEtaPlugin extends Plugin
 		{
 			bankOpen = true;
 			lastBankTick = tick;
+			log.debug("bank interface {} opened", event.getGroupId());
 		}
 	}
 
@@ -248,6 +273,7 @@ public class TripEtaPlugin extends Plugin
 		{
 			bankOpen = false;
 			lastBankTick = tick;
+			log.debug("bank interface {} closed", event.getGroupId());
 		}
 	}
 
@@ -286,11 +312,21 @@ public class TripEtaPlugin extends Plugin
 				startTrip(activity);
 			}
 			model.onItem(activity, System.currentTimeMillis());
+			if (log.isDebugEnabled())
+			{
+				int remaining = remainingCapacity();
+				TripModel.Estimate est = model.estimate(remaining);
+				log.debug("item #{}: remaining={} gatherTicks={} offTicks={} spi={} eta={}",
+					model.getItems(), remaining, model.getGatherTicks(), model.getOffTicks(),
+					String.format("%.1f", model.secondsPerItem()),
+					est == null ? "none" : TripModel.formatSeconds(est.lowSeconds) + "/" + TripModel.formatSeconds(est.midSeconds) + "/" + TripModel.formatSeconds(est.highSeconds));
+			}
 			return;
 		}
 		if (model.isActive() && model.getActivity().isRollWithoutItemMessage(message))
 		{
 			model.onRollWithoutItem();
+			log.debug("roll without item #{}", model.getRollsWithoutItem());
 		}
 	}
 
@@ -350,6 +386,9 @@ public class TripEtaPlugin extends Plugin
 		model.setLeadNotified(true);
 		Activity a = model.getActivity();
 		String text = "Trip ETA: inventory fills in about " + TripModel.formatSeconds(est.midSeconds) + " of " + a.verb.toLowerCase();
+		log.debug("lead warning: remaining={} eta={}/{}/{} runelite={} dink={}", remaining,
+			TripModel.formatSeconds(est.lowSeconds), TripModel.formatSeconds(est.midSeconds), TripModel.formatSeconds(est.highSeconds),
+			config.notifyRuneLite(), config.dinkNotify());
 		if (config.notifyRuneLite())
 		{
 			notifier.notify(text);
@@ -414,6 +453,7 @@ public class TripEtaPlugin extends Plugin
 				priors.put(a, v);
 			}
 		}
+		log.debug("priors loaded: {}", priors);
 	}
 
 	private void savePrior(Activity activity, double secondsPerItem)
