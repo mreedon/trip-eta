@@ -40,10 +40,12 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.WidgetClosed;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.Notifier;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -67,6 +69,9 @@ public class TripEtaPlugin extends Plugin
 	/** How long after a bank interface was open a big drop still counts as banking. */
 	private static final int BANK_GRACE_TICKS = 3;
 	private static final String INVENTORY_FULL_PREFIX = "Your inventory is too full to hold any more";
+	private static final String CHECK_OPTION = "Check";
+	/** How long after a Check click the item box that opens is taken to be the basket's. */
+	private static final int CHECK_GRACE_TICKS = 3;
 	private static final String PRIOR_KEY_PREFIX = "secondsPerRoll.";
 	private static final String LEGACY_PRIOR_KEY_PREFIX = "secondsPerItem.";
 
@@ -110,6 +115,7 @@ public class TripEtaPlugin extends Plugin
 	private int itemMessagesThisTick;
 	private boolean bankOpen;
 	private int lastBankTick = -1000;
+	private int checkClickedTick = -1000;
 	private int tick;
 
 	@Provides
@@ -287,6 +293,17 @@ public class TripEtaPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event)
+	{
+		// "Check" on a basket opens an item box, not a chat line; remember the click so the
+		// box that follows can be attributed to the basket and not to some other item.
+		if (CHECK_OPTION.equals(event.getMenuOption()) && BasketTracker.isBasket(event.getItemId()))
+		{
+			checkClickedTick = tick;
+		}
+	}
+
+	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
 		if (isBankInterface(event.getGroupId()))
@@ -294,6 +311,21 @@ public class TripEtaPlugin extends Plugin
 			bankOpen = true;
 			lastBankTick = tick;
 			log.debug("bank interface {} opened", event.getGroupId());
+			return;
+		}
+		if (event.getGroupId() == InterfaceID.OBJECTBOX && (tick - checkClickedTick) <= CHECK_GRACE_TICKS)
+		{
+			// The text is filled in after the load event, so read it on the next pass.
+			clientThread.invokeLater(() ->
+			{
+				Widget text = client.getWidget(InterfaceID.Objectbox.TEXT);
+				if (text == null)
+				{
+					return;
+				}
+				BasketTracker.Outcome outcome = basket.onCheckText(text.getText());
+				log.debug("basket check box -> {} ({}/{})", outcome, basket.getUsed(), BasketTracker.CAPACITY);
+			});
 		}
 	}
 

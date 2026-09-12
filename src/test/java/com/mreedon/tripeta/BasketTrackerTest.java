@@ -81,13 +81,27 @@ public class BasketTrackerTest
 	}
 
 	@Test
-	public void checkSummaryIsSummed()
+	public void checkBoxTextIsSummed()
 	{
 		BasketTracker b = present();
-		assertEquals(BasketTracker.Outcome.UPDATED, b.onMessage("The basket contains: 12 x Redwood logs, 3 x Yew logs"));
+		assertEquals(BasketTracker.Outcome.UPDATED, b.onCheckText("The basket contains:<br>12 x Redwood logs<br>3 x Yew logs"));
 		assertEquals(15, b.getUsed());
-		assertEquals(BasketTracker.Outcome.UPDATED, b.onMessage("5 × Magic logs"));
+		assertEquals(BasketTracker.Outcome.UPDATED, b.onCheckText("<col=ff0000>The basket contains:</col><br>5 × Magic logs"));
 		assertEquals(5, b.getUsed());
+		assertEquals(BasketTracker.Outcome.UPDATED, b.onCheckText("The basket is empty."));
+		assertEquals(0, b.getUsed());
+		b.onManualFill(4);
+		assertEquals(BasketTracker.Outcome.NONE, b.onCheckText("The coal bag contains 27 pieces of coal."));
+		assertEquals(4, b.getUsed());
+		assertEquals(BasketTracker.Outcome.NONE, b.onCheckText(null));
+	}
+
+	@Test
+	public void chatNeverCarriesTheCheckSummary()
+	{
+		BasketTracker b = present();
+		assertEquals(BasketTracker.Outcome.NONE, b.onMessage("The basket contains: 12 x Redwood logs"));
+		assertEquals(0, b.getUsed());
 	}
 
 	@Test

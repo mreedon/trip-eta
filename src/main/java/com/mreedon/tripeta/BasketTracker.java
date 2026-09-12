@@ -59,7 +59,7 @@ class BasketTracker
 	private static final String IS_EMPTY = "Your basket is empty.";
 	private static final String CHECKED_EMPTY = "The basket is empty.";
 	private static final String EMPTIED_TO_INVENTORY = "You empty your basket.";
-	/** Entries in the "Check" summary look like "12 x Redwood logs". */
+	/** Entries in the "Check" item box look like "12 x Redwood logs". */
 	private static final Pattern CHECK_ENTRY = Pattern.compile("(\\d+)\\s*[×x]\\s*[A-Za-z][^,]*", Pattern.CASE_INSENSITIVE);
 
 	private boolean present;
@@ -123,9 +123,32 @@ class BasketTracker
 				used = CAPACITY;
 				return Outcome.UPDATED;
 			default:
-				break;
+				return Outcome.NONE;
 		}
-		Matcher m = CHECK_ENTRY.matcher(message);
+	}
+
+	/**
+	 * The text of the item box the game opens for "Check" on a basket. This is a widget,
+	 * not a chat line: "The basket contains:" followed by one "N x Some logs" entry per
+	 * log type, with line breaks as {@code <br>} tags. An empty basket says so in words.
+	 */
+	Outcome onCheckText(String text)
+	{
+		if (text == null)
+		{
+			return Outcome.NONE;
+		}
+		String plain = text.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+		if (plain.contains("basket is empty"))
+		{
+			used = 0;
+			return Outcome.UPDATED;
+		}
+		if (!plain.contains("The basket contains"))
+		{
+			return Outcome.NONE;
+		}
+		Matcher m = CHECK_ENTRY.matcher(plain);
 		int total = 0;
 		boolean any = false;
 		while (m.find())
@@ -133,12 +156,12 @@ class BasketTracker
 			any = true;
 			total += Integer.parseInt(m.group(1));
 		}
-		if (any)
+		if (!any)
 		{
-			used = Math.min(CAPACITY, total);
-			return Outcome.UPDATED;
+			return Outcome.NONE;
 		}
-		return Outcome.NONE;
+		used = Math.min(CAPACITY, total);
+		return Outcome.UPDATED;
 	}
 
 	/** Items that arrived (per the chat) but never took an inventory slot went into the basket. */

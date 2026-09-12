@@ -73,8 +73,10 @@ the plugin adds its 28 slots to the trip and follows what is in it:
 
 - a log that arrives without taking an inventory slot went into an open basket,
 - a large inventory drop away from any bank is you filling the basket by hand,
-- "The basket is full", "Your basket is empty", the emptied-to-bank and
-  emptied-to-inventory lines, and the "Check" summary all set the count directly.
+- "The basket is full", "Your basket is empty", and the emptied-to-bank and
+  emptied-to-inventory lines set the count directly.
+- Right-click *Check* opens an item box rather than printing to chat; the plugin
+  reads that box when it follows a Check click on a basket.
 
 After logging in the contents are unknown and assumed empty. With an **open**
 basket that fixes itself: an open basket takes every log until it is full, so the
