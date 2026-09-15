@@ -403,6 +403,12 @@ public class TripEtaPlugin extends Plugin
 		return Math.max(0, INVENTORY_SIZE - occupiedSlots) + basket.remaining();
 	}
 
+	/** Every slot a log could go in: the inventory plus the basket when there is one. */
+	int totalCapacity()
+	{
+		return INVENTORY_SIZE + (basket.isPresent() ? BasketTracker.CAPACITY : 0);
+	}
+
 	private void startTrip(Activity activity)
 	{
 		model.setPrior(priors.getOrDefault(activity, 0.0));

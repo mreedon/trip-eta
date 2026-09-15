@@ -145,10 +145,16 @@ class TripEtaOverlay extends OverlayPanel
 			.rightColor(off ? OFF_COLOR : DIM)
 			.build());
 
+		// The bar is how full the inventory and basket are, not how far through the trip
+		// the counter is. The two agree on a trip that starts empty, but a basket that
+		// already held logs (a Check after login, or the plugin enabled mid-trip) has to
+		// move the bar as much as it moves the count above it. Measuring items against
+		// items-plus-remaining only shrank the denominator and left the bar nearly still.
+		int capacity = plugin.totalCapacity();
 		ProgressBarComponent bar = new ProgressBarComponent();
 		bar.setMinimum(0);
-		bar.setMaximum(Math.max(1, total));
-		bar.setValue(model.getItems());
+		bar.setMaximum(Math.max(1, capacity));
+		bar.setValue(Math.max(0, capacity - remaining));
 		bar.setForegroundColor(model.isFull() ? FULL_COLOR : BAR_FOREGROUND);
 		bar.setBackgroundColor(BAR_BACKGROUND);
 		panelComponent.getChildren().add(bar);

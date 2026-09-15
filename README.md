@@ -14,7 +14,7 @@ A small overlay while a trip is in progress:
 - **Chopping left**: how much more chopping it will take to fill up, as a range that
   tightens as the trip goes on.
 - **Off tree**: how long you have not been chopping, shown only while that is true.
-- A progress bar.
+- A progress bar: how full the inventory (and basket) is.
 
 ## How the estimate works
 
