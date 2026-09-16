@@ -27,7 +27,9 @@ package com.mreedon.tripeta;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.runelite.api.gameval.AnimationID;
 
@@ -84,7 +86,7 @@ enum Activity
 		},
 		// Same shape as the core Woodcutting plugin's pattern, plus the two bonus-log lines
 		// (Kandarin headgear, nature offerings) that hand over a log without a "You get" line.
-		Pattern.compile("^(?:You get (?:some|an)[\\w' ]+(?:logs?|mushrooms)"
+		Pattern.compile("^(?:You get (?:some|an) ?([\\w' -]*(?:logs?|mushrooms))"
 			+ "|Your Kandarin headgear provides you with an additional log"
 			+ "|The nature offerings enabled you to chop an extra log)\\.$"),
 		// Felling axe with forester's rations: a successful chop that yields no log.
@@ -161,8 +163,9 @@ enum Activity
 			AnimationID.HUMAN_MINING_LEAGUE_TRAILBLAZER_PICKAXE_WALL,
 		},
 		// Ore lines, plus the bonus-ore lines (Varrock armour, Mining cape, celestial ring)
-		// that hand over an ore without a "You manage to mine" line.
-		Pattern.compile("^(?:You manage to mine (?:some|an?) [\\w' ]+"
+		// that hand over an ore without a "You manage to mine" line. The hyphen matters:
+		// Motherlode Mine gives "You manage to mine some pay-dirt."
+		Pattern.compile("^(?:You manage to mine (?:some|an?) ([\\w' -]+)"
 			+ "|The Varrock platebody enabled you to mine an additional ore"
 			+ "|Your cape allows you to mine an additional ore"
 			+ "|Your celestial ring allows you to mine an additional ore)\\.$",
@@ -205,14 +208,23 @@ enum Activity
 			AnimationID.HUMAN_HARPOON_LEAGUE_TRAILBLAZER,
 			AnimationID.HUMAN_LARGENET,
 			AnimationID.HUMAN_SMALLNET,
+			// Cage fishing (lobster, crab) and the karambwan vessel, which the game calls
+			// an octopus pot. Both are in the core Idle Notifier's fishing set.
+			AnimationID.HUMAN_LOBSTER,
+			AnimationID.HUMAN_OCTOPUS_POT,
 			AnimationID.BRUT_PLAYER_HAND_FISHING_END_BLANK,
 		},
 		// Core Fishing plugin's catch regex, the ice-gloves suffix, and the extra-fish lines
 		// (Rada's blessing, angler's outfit) that hand over a fish without a "You catch" line.
-		Pattern.compile("^(?:You catch (?:an?|some) [\\w' -]+?"
+		Pattern.compile("^(?:You catch (?:an?|some) ([\\w' -]+?)"
 			+ "|Your cormorant returns with its catch"
 			+ "|.+ enabled you to catch an extra fish)[.!]"
 			+ "(?: It hardens as you handle it with your ice gloves\\.)?$"),
+		// Deliberately none. A karambwan stealing the bait ("A karambwan deftly snatches
+		// the karambwanji from your vessel.") is a failed catch, not a successful roll that
+		// withheld a fish, and its odds are not known. Counting it as a roll would divide
+		// the rate by a number this model has no constant for. Left alone, the time those
+		// attempts take is absorbed into seconds per fish, which is what the estimate wants.
 		null
 	);
 
@@ -256,6 +268,36 @@ enum Activity
 	boolean isItemMessage(String message)
 	{
 		return itemMessage.matcher(message).matches();
+	}
+
+	/**
+	 * What the message says arrived, normalised for use as a settings key: "redwood logs"
+	 * becomes {@code redwood_logs}. Null when the line names nothing, which is how the
+	 * bonus-item lines read ("Your Kandarin headgear provides you with an additional log")
+	 * and how a clean cut reads. Those inherit whatever the trip has been naming.
+	 */
+	String itemTypeOf(String message)
+	{
+		Matcher m = itemMessage.matcher(message);
+		if (!m.matches() || m.groupCount() < 1)
+		{
+			return null;
+		}
+		return normaliseType(m.group(1));
+	}
+
+	/** Lower case, single underscores, letters and digits only; null if nothing usable is left. */
+	static String normaliseType(String raw)
+	{
+		if (raw == null)
+		{
+			return null;
+		}
+		String key = raw.toLowerCase(Locale.ROOT).trim().replaceAll("[^a-z0-9]+", "_");
+		key = key.replaceAll("^_+|_+$", "");
+		// A settings key has to stay recognisable and bounded; anything odd is dropped
+		// rather than written, so a surprising message cannot litter the profile.
+		return key.isEmpty() || key.length() > 40 ? null : key;
 	}
 
 	boolean isRollWithoutItemMessage(String message)

@@ -1,6 +1,7 @@
 package com.mreedon.tripeta;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -83,8 +84,9 @@ public class TripModelTest
 		gather(m, 10); // 6 s
 		m.onItem(Activity.WOODCUTTING, 0);
 		m.onItem(Activity.WOODCUTTING, 0); // observed 3 s/item
-		// (3*2 + 10*PRIOR_WEIGHT) / (2+PRIOR_WEIGHT)
-		double expected = (3.0 * 2 + 10.0 * TripModel.PRIOR_WEIGHT) / (2 + TripModel.PRIOR_WEIGHT);
+		// Only the skill's rate is carried here, and a skill covers trees that are nothing
+		// alike, so it is worth the lighter weight until this item type has a rate of its own.
+		double expected = (3.0 * 2 + 10.0 * TripModel.SKILL_PRIOR_WEIGHT) / (2 + TripModel.SKILL_PRIOR_WEIGHT);
 		assertEquals(expected, m.secondsPerItem(), EPS);
 	}
 
@@ -277,7 +279,7 @@ public class TripModelTest
 	}
 
 	@Test
-	public void aPauseInsideTheGraceIsCreditedBackWhenGatheringResumes()
+	public void aShortPauseJoinsTheRateClockButStaysOffTime()
 	{
 		TripModel m = new TripModel();
 		m.start(Activity.MINING, 0);
@@ -285,13 +287,15 @@ public class TripModelTest
 		pause(m, 3); // hop to the next rock
 		assertEquals(3, m.getOffTicks());
 		gather(m, 1);
+		// The rate covers the whole work cycle, swings plus the hop between them.
 		assertEquals(14, m.getGatherTicks());
-		assertEquals(0, m.getOffTicks());
+		// The off clock still knows you were not swinging, which is what the panel shows.
+		assertEquals(3, m.getOffTicks());
 		assertEquals(0, m.getOffStreakTicks());
 	}
 
 	@Test
-	public void aPauseLongerThanTheGraceStaysOffInFull()
+	public void aPauseLongerThanTheGraceNeverJoinsTheRate()
 	{
 		TripModel m = new TripModel();
 		m.start(Activity.MINING, 0);
@@ -313,7 +317,7 @@ public class TripModelTest
 		pause(m, Activity.FISHING.pauseGraceTicks);
 		gather(m, 1);
 		assertEquals(6 + Activity.FISHING.pauseGraceTicks, m.getGatherTicks());
-		assertEquals(0, m.getOffTicks());
+		assertEquals(Activity.FISHING.pauseGraceTicks, m.getOffTicks());
 	}
 
 	@Test
@@ -330,7 +334,7 @@ public class TripModelTest
 	@Test
 	public void aPauseThatNeverEndsIsNotCredited()
 	{
-		// Walking to the bank is a pause with no resumption; it stays off-time in the summary.
+		// Walking to the bank is a pause with no resumption; the rate never sees it.
 		TripModel m = new TripModel();
 		m.start(Activity.MINING, 0);
 		gather(m, 10);
@@ -340,24 +344,39 @@ public class TripModelTest
 	}
 
 	@Test
-	public void awayStreakIgnoresAPauseInsideTheGrace()
+	public void theOffStreakCountsEveryPauseFromItsFirstTick()
 	{
 		TripModel m = new TripModel();
 		m.start(Activity.MINING, 0);
 		gather(m, 1);
-		pause(m, Activity.MINING.pauseGraceTicks);
-		assertEquals(Activity.MINING.pauseGraceTicks, m.getOffStreakTicks());
-		assertEquals(0, m.awayStreakTicks());
 		pause(m, 1);
-		// Past the grace the whole streak is shown, not just the part beyond it.
-		assertEquals(Activity.MINING.pauseGraceTicks + 1, m.awayStreakTicks());
+		assertEquals(1, m.getOffStreakTicks());
+		pause(m, 2);
+		assertEquals(3, m.getOffStreakTicks());
 		gather(m, 1);
-		assertEquals(0, m.awayStreakTicks());
+		assertEquals(0, m.getOffStreakTicks());
+	}
 
-		TripModel w = started();
-		gather(w, 1);
-		pause(w, 1);
-		assertEquals(1, w.awayStreakTicks());
+	@Test
+	public void thePanelIgnoresTheAnimationBlipButShowsARealHop()
+	{
+		TripModel m = new TripModel();
+		m.start(Activity.MINING, 0);
+		gather(m, 5);
+		// The animation drops for a tick when an ore lands, then picks straight back up.
+		for (int i = 0; i < TripModel.OFF_SETTLE_TICKS; i++)
+		{
+			pause(m, 1);
+			assertEquals(0, m.visibleOffStreakTicks());
+		}
+		// Past that it is the player, and the whole pause shows, not just the part beyond.
+		pause(m, 1);
+		assertEquals(TripModel.OFF_SETTLE_TICKS + 1, m.visibleOffStreakTicks());
+		// Still far below the rate's grace, so a hop between rocks shows here and is
+		// still treated as part of the work by the estimate.
+		assertTrue(TripModel.OFF_SETTLE_TICKS < Activity.MINING.pauseGraceTicks);
+		gather(m, 1);
+		assertEquals(0, m.visibleOffStreakTicks());
 	}
 
 	@Test
@@ -370,6 +389,145 @@ public class TripModelTest
 		m.tick(false);
 		assertEquals(5, m.getGatherTicks());
 		assertEquals(0, m.getOffTicks());
+	}
+
+	@Test
+	public void resumeRestartsTheClockAndTheWarnings()
+	{
+		// Motherlode: the inventory fills with pay-dirt, goes into the hopper, and the
+		// same trip carries on rather than ending at a bank.
+		TripModel m = new TripModel();
+		m.start(Activity.MINING, 0);
+		gather(m, 10);
+		m.onItem(Activity.MINING, 0);
+		m.onItem(Activity.MINING, 0);
+		m.setLeadNotified(true);
+		m.markFull();
+		gather(m, 5);
+		assertEquals(10, m.getGatherTicks()); // full stops the clock
+
+		m.resume();
+		assertFalse(m.isFull());
+		assertFalse(m.isLeadNotified());
+		assertFalse(m.isFullNotified());
+		gather(m, 5);
+		assertEquals(15, m.getGatherTicks());
+		assertEquals(2, m.getItems()); // the trip total carries across the deposit
+		assertEquals(0, m.getFillItems()); // the fill starts over, which is what the panel counts
+	}
+
+	@Test
+	public void theFillCountIgnoresWhatYouWereAlreadyCarrying()
+	{
+		// Bait, a vessel and the barrel occupy slots but are not fish. The panel counts
+		// what arrived, so a trip that starts with tools in the inventory still reads 0.
+		TripModel m = new TripModel();
+		m.start(Activity.FISHING, 0);
+		assertEquals(0, m.getFillItems());
+		gather(m, 5);
+		m.onItem(Activity.FISHING, 0);
+		m.onItem(Activity.FISHING, 0);
+		assertEquals(2, m.getFillItems());
+		assertEquals(2, m.getItems());
+	}
+
+	@Test
+	public void payDirtIsAnItemMessage()
+	{
+		assertEquals(Activity.MINING, Activity.forItemMessage("You manage to mine some pay-dirt."));
+		assertEquals(Activity.MINING, Activity.forItemMessage("You manage to mine some copper ore."));
+		assertEquals(Activity.MINING, Activity.forItemMessage("You manage to mine an amethyst."));
+		assertNull(Activity.forItemMessage("You manage to mine nothing at all"));
+	}
+
+	@Test
+	public void itemTypeIsReadFromTheMessage()
+	{
+		assertEquals("redwood_logs", Activity.WOODCUTTING.itemTypeOf("You get some redwood logs."));
+		assertEquals("yew_logs", Activity.WOODCUTTING.itemTypeOf("You get some yew logs."));
+		assertEquals("pay_dirt", Activity.MINING.itemTypeOf("You manage to mine some pay-dirt."));
+		assertEquals("copper_ore", Activity.MINING.itemTypeOf("You manage to mine some copper ore."));
+		assertEquals("karambwan", Activity.FISHING.itemTypeOf("You catch a karambwan."));
+		// The bonus lines name nothing, so they inherit whatever the trip has been naming.
+		assertNull(Activity.WOODCUTTING.itemTypeOf("Your Kandarin headgear provides you with an additional log."));
+		assertNull(Activity.MINING.itemTypeOf("The Varrock platebody enabled you to mine an additional ore."));
+	}
+
+	@Test
+	public void theTypesOwnRateOutweighsTheSkills()
+	{
+		// A willow trip should not be dragged by a redwood rate, so the skill figure is
+		// worth only a few rolls while the type's own is worth many.
+		TripModel skillOnly = new TripModel();
+		skillOnly.setPrior(18.0);
+		skillOnly.start(Activity.WOODCUTTING, 0);
+		TripModel typed = new TripModel();
+		typed.setPrior(18.0);
+		typed.start(Activity.WOODCUTTING, 0);
+		typed.setTypePrior(18.0);
+		for (TripModel m : new TripModel[]{skillOnly, typed})
+		{
+			gather(m, 50); // 30 s for 5 rolls = 6 s/roll, far from the carried 18
+			for (int i = 0; i < 5; i++)
+			{
+				m.onItem(Activity.WOODCUTTING, 0);
+			}
+		}
+		// Same observation, same carried number: the one anchored to its own type moves less.
+		assertTrue(skillOnly.secondsPerRoll() < typed.secondsPerRoll());
+		assertEquals((6.0 * 5 + 18.0 * TripModel.SKILL_PRIOR_WEIGHT) / (5 + TripModel.SKILL_PRIOR_WEIGHT),
+			skillOnly.secondsPerRoll(), EPS);
+		assertEquals((6.0 * 5 + 18.0 * TripModel.PRIOR_WEIGHT) / (5 + TripModel.PRIOR_WEIGHT),
+			typed.secondsPerRoll(), EPS);
+	}
+
+	@Test
+	public void aMixedLoadTeachesNoTypeItsRate()
+	{
+		TripModel m = new TripModel();
+		m.start(Activity.MINING, 0);
+		m.noteItemType("iron_ore");
+		assertFalse(m.isMixedTypes());
+		gather(m, 200);
+		for (int i = 0; i < 15; i++)
+		{
+			m.onItem(Activity.MINING, 0);
+		}
+		m.noteItemType("coal");
+		assertTrue(m.isMixedTypes());
+		assertEquals(0.0, m.finishType(), EPS);
+
+		// The same trip on one type does teach it.
+		TripModel clean = new TripModel();
+		clean.start(Activity.MINING, 0);
+		clean.noteItemType("iron_ore");
+		gather(clean, 200); // 120 s
+		for (int i = 0; i < 15; i++)
+		{
+			clean.onItem(Activity.MINING, 0);
+		}
+		assertEquals(8.0, clean.finishType(), EPS);
+	}
+
+	@Test
+	public void aLongCleanRunStopsApplyingAChanceCarriedFromAnEarlierTrip()
+	{
+		// He ran out of forester's rations. The previous trip saw clean cuts, this one has
+		// seen none in a long while, so the estimate must stop dividing by four fifths.
+		TripModel m = new TripModel();
+		m.setMissesSeenBefore(true);
+		m.start(Activity.WOODCUTTING, 0);
+		gather(m, 10);
+		m.onItem(Activity.WOODCUTTING, 0);
+		assertEquals(0.8, m.itemChance(), EPS);
+		for (int i = 1; i < TripModel.MISSES_DOUBT_ROLLS; i++)
+		{
+			m.onItem(Activity.WOODCUTTING, 0);
+		}
+		assertEquals(1.0, m.itemChance(), EPS);
+		// A single clean cut settles it the other way again.
+		m.onRollWithoutItem();
+		assertEquals(0.8, m.itemChance(), EPS);
 	}
 
 	@Test

@@ -94,7 +94,7 @@ public interface TripEtaConfig extends Config
 	@ConfigItem(
 		keyName = "notifyOnFull",
 		name = "Also notify when full",
-		description = "Send a second notification the moment the inventory (and basket) is full",
+		description = "Send a second notification the moment the inventory (and any basket or barrel) is full",
 		position = 13,
 		section = notifications
 	)

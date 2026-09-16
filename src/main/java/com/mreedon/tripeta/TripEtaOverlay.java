@@ -83,20 +83,25 @@ class TripEtaOverlay extends OverlayPanel
 
 		Activity activity = model.getActivity();
 		int remaining = plugin.remainingCapacity();
-		int total = model.getItems() + remaining;
+		// What you have gathered toward this fill, against what it takes to finish it.
+		// Not the trip's running total, which counts past capacity once the Motherlode
+		// hopper empties you mid-trip; and not occupied slots, which would read your
+		// bait, vessel and barrel as fish you had already caught.
+		int used = model.getFillItems();
+		int capacity = used + remaining;
 
 		panelComponent.getChildren().add(TitleComponent.builder().text("Trip ETA").build());
 
 		panelComponent.getChildren().add(LineComponent.builder()
 			.left(capitalize(activity.itemNoun))
-			.right(model.getItems() + " / " + total)
+			.right(used + " / " + capacity)
 			.build());
 
 		BasketTracker basket = plugin.getBasket();
 		if (basket.isPresent() && plugin.basketTakesItems())
 		{
 			panelComponent.getChildren().add(LineComponent.builder()
-				.left("Basket" + (basket.isOpen() ? " (open" : " (closed") + (basket.isWorn() ? ", worn)" : ")"))
+				.left(capitalize(basket.noun()) + (basket.isOpen() ? " (open" : " (closed") + (basket.isWorn() ? ", worn)" : ")"))
 				.right(basket.getUsed() + " / " + BasketTracker.CAPACITY)
 				.rightColor(DIM)
 				.build());
@@ -137,27 +142,22 @@ class TripEtaOverlay extends OverlayPanel
 				.build());
 		}
 
-		// A pause inside the activity's grace (a rock hop, a spot move) is not time away
-		// yet, so the line stays dark rather than flashing on every ore.
-		int awayTicks = model.isFull() ? 0 : model.awayStreakTicks();
-		boolean off = awayTicks > 0;
+		// Any pause that is really you stopping, including a hop between rocks. The estimate
+		// treats a short hop as part of the work; this line still says you are not on it.
+		int offTicks = model.isFull() ? 0 : model.visibleOffStreakTicks();
+		boolean off = offTicks > 0;
 		panelComponent.getChildren().add(LineComponent.builder()
 			.left(activity.offLabel)
 			.leftColor(off ? Color.WHITE : DIM)
-			.right(off ? TripModel.formatSeconds(awayTicks * TripModel.TICK_SECONDS) : "-")
+			.right(off ? TripModel.formatSeconds(offTicks * TripModel.TICK_SECONDS) : "-")
 			.rightColor(off ? OFF_COLOR : DIM)
 			.build());
 
-		// The bar is how full the inventory and basket are, not how far through the trip
-		// the counter is. The two agree on a trip that starts empty, but a basket that
-		// already held logs (a Check after login, or the plugin enabled mid-trip) has to
-		// move the bar as much as it moves the count above it. Measuring items against
-		// items-plus-remaining only shrank the denominator and left the bar nearly still.
-		int capacity = plugin.totalCapacity();
+		// Same fraction as the count line above, so the two can never disagree.
 		ProgressBarComponent bar = new ProgressBarComponent();
 		bar.setMinimum(0);
 		bar.setMaximum(Math.max(1, capacity));
-		bar.setValue(Math.max(0, capacity - remaining));
+		bar.setValue(used);
 		bar.setForegroundColor(model.isFull() ? FULL_COLOR : BAR_FOREGROUND);
 		bar.setBackgroundColor(BAR_BACKGROUND);
 		panelComponent.getChildren().add(bar);
