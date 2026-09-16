@@ -27,6 +27,7 @@ package com.mreedon.tripeta;
 import com.google.inject.Provides;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +60,7 @@ import net.runelite.client.util.Text;
 @PluginDescriptor(
 	name = "Trip ETA",
 	description = "Estimates when your inventory fills, counting only the time you're actually gathering",
-	tags = {"inventory", "full", "trip", "afk", "eta", "timer", "woodcutting", "mining", "fishing", "dink"}
+	tags = {"inventory", "full", "trip", "afk", "eta", "timer", "woodcutting", "mining", "fishing", "basket", "barrel", "dink"}
 )
 public class TripEtaPlugin extends Plugin
 {
@@ -72,6 +73,9 @@ public class TripEtaPlugin extends Plugin
 	private static final String CHECK_OPTION = "Check";
 	/** How long after a Check click the item box that opens is taken to be the basket's. */
 	private static final int CHECK_GRACE_TICKS = 3;
+	/** Shapes that mean "something was gathered", used only to log a line no activity claimed. */
+	private static final Pattern GATHER_PHRASE =
+		Pattern.compile("^(?:You manage to mine|You get some|You catch|You strike)", Pattern.CASE_INSENSITIVE);
 	private static final String PRIOR_KEY_PREFIX = "secondsPerRoll.";
 	private static final String LEGACY_PRIOR_KEY_PREFIX = "secondsPerItem.";
 
@@ -208,7 +212,8 @@ public class TripEtaPlugin extends Plugin
 		int toBasket = Math.max(0, itemMessagesThisTick - inventoryGain);
 		int fromBasket = Math.max(0, inventoryGain - itemMessagesThisTick);
 		int intoInventory = Math.min(itemMessagesThisTick, inventoryGain);
-		if (intoInventory > 0 && basket.isPresent() && basket.isOpen() && basket.getUsed() < BasketTracker.CAPACITY)
+		boolean basketInPlay = basket.isPresent() && basketTakesItems();
+		if (intoInventory > 0 && basketInPlay && basket.isOpen() && basket.getUsed() < BasketTracker.CAPACITY)
 		{
 			// An open basket only lets an item reach the inventory once it is full.
 			basket.onItemsIntoInventoryWhileOpen(intoInventory);
@@ -217,7 +222,7 @@ public class TripEtaPlugin extends Plugin
 		}
 		if (toBasket > 0)
 		{
-			if (basket.isPresent())
+			if (basketInPlay)
 			{
 				basket.onItemsWithoutInventoryGain(toBasket);
 				log.debug("basket took {} item(s): {}/{} (messages={} inventoryGain={})",
@@ -228,7 +233,7 @@ public class TripEtaPlugin extends Plugin
 				log.debug("{} item message(s) with no inventory gain and no basket in inventory", toBasket);
 			}
 		}
-		else if (fromBasket > 0 && basket.isPresent() && basket.getUsed() > 0)
+		else if (fromBasket > 0 && basketInPlay && basket.getUsed() > 0)
 		{
 			basket.onInventoryGainWithoutItems(fromBasket);
 			log.debug("basket gave up {} item(s): {}/{}", fromBasket, basket.getUsed(), BasketTracker.CAPACITY);
@@ -252,6 +257,13 @@ public class TripEtaPlugin extends Plugin
 				onFull();
 			}
 			return;
+		}
+		if (model.isFull() && emptiedEnoughToResume(remaining))
+		{
+			// Emptied somewhere that is not a bank (the Motherlode hopper), so the trip
+			// goes on and fills again from nothing.
+			model.resume();
+			log.debug("room again ({} free): trip resumes at {} {}", remaining, model.getItems(), model.getActivity().itemNoun);
 		}
 		checkLead(remaining);
 	}
@@ -285,7 +297,7 @@ public class TripEtaPlugin extends Plugin
 		{
 			finishTrip();
 		}
-		else
+		else if (basketTakesItems())
 		{
 			basket.onManualFill(drop);
 		}
@@ -297,7 +309,7 @@ public class TripEtaPlugin extends Plugin
 		// "Check" on a basket opens an item box, not a chat line; remember the click so the
 		// box that follows can be attributed to the basket and not to some other item.
 		// A worn basket's Check comes through the equipment tab without an inventory item id.
-		if (CHECK_OPTION.equals(event.getMenuOption()) && (BasketTracker.isBasket(event.getItemId()) || basket.isWorn()))
+		if (CHECK_OPTION.equals(event.getMenuOption()) && (BasketTracker.kindOf(event.getItemId()) != null || basket.isWorn()))
 		{
 			checkClickedTick = tick;
 		}
@@ -360,6 +372,11 @@ public class TripEtaPlugin extends Plugin
 			}
 			return;
 		}
+		if (BasketTracker.mentionsContainer(message))
+		{
+			// The fish barrel's lines are partly guessed; this is how the guesses get checked.
+			log.debug("container line not recognised: \"{}\"", message);
+		}
 		if (message.startsWith(INVENTORY_FULL_PREFIX))
 		{
 			if (model.isActive() && !model.isFull())
@@ -378,6 +395,29 @@ public class TripEtaPlugin extends Plugin
 			{
 				startTrip(activity);
 			}
+			if (!gathering)
+			{
+				// An item arrived while nothing was recognised as gathering. Usually the
+				// animation just ended this tick, but a whole method whose animation is
+				// missing looks exactly like this and leaves the estimate with no clock at
+				// all, so name the animation rather than silently measuring nothing.
+				Player local = client.getLocalPlayer();
+				int anim = local == null ? -1 : local.getAnimation();
+				if (anim != -1 && Activity.forAnimation(anim) == null)
+				{
+					log.debug("{} arrived while animation {} is not in any activity's set", activity, anim);
+				}
+			}
+			String type = activity.itemTypeOf(message);
+			if (type != null && !type.equals(model.getCurrentType()))
+			{
+				model.noteItemType(type);
+				double typeRate = loadTypePrior(activity, type);
+				model.setTypePrior(typeRate);
+				log.debug("gathering {}: {}", type, typeRate > 0
+					? String.format("its own rate is %.2f s/roll", typeRate)
+					: "no rate of its own yet, leaning on the skill's");
+			}
 			model.onItem(activity, System.currentTimeMillis());
 			if (log.isDebugEnabled())
 			{
@@ -394,25 +434,56 @@ public class TripEtaPlugin extends Plugin
 		{
 			model.onRollWithoutItem();
 			log.debug("roll without item #{}", model.getRollsWithoutItem());
+			return;
 		}
+		if (GATHER_PHRASE.matcher(message).find())
+		{
+			// Reads like an item arriving but no activity claimed it: the pattern is wrong
+			// or the item is new. Says so in the log rather than silently undercounting.
+			log.debug("item line not matched by any activity: \"{}\"", message);
+		}
+	}
+
+	/**
+	 * Whether the carried container takes what this trip gathers: logs in a log basket, raw
+	 * fish in a fish barrel, nothing for an ore. Before a trip has an activity the container
+	 * is assumed to count, which only affects fill and empty tracking.
+	 */
+	boolean basketTakesItems()
+	{
+		return !model.isActive() || basket.takes(model.getActivity());
 	}
 
 	/** Free inventory slots plus whatever a basket in the inventory can still take. */
 	int remainingCapacity()
 	{
-		return Math.max(0, INVENTORY_SIZE - occupiedSlots) + basket.remaining();
+		return Math.max(0, INVENTORY_SIZE - occupiedSlots) + (basketTakesItems() ? basket.remaining() : 0);
 	}
 
-	/** Every slot a log could go in: the inventory plus the basket when there is one. */
+	/** Every slot this trip's items could go in: the inventory plus the basket when it takes them. */
 	int totalCapacity()
 	{
-		return INVENTORY_SIZE + (basket.isPresent() ? BasketTracker.CAPACITY : 0);
+		return INVENTORY_SIZE + (basket.isPresent() && basketTakesItems() ? BasketTracker.CAPACITY : 0);
+	}
+
+	/**
+	 * Whether a full trip has been emptied enough to be heading for another fill. The
+	 * Motherlode hopper takes the lot, so the trip carries on. Power-mining iron, or
+	 * fletching amethyst into tips as it arrives, frees a few slots at a time and the
+	 * inventory never goes anywhere: there is no fill to predict, so the plugin stays
+	 * marked full and out of the way until the next bank.
+	 */
+	private boolean emptiedEnoughToResume(int remaining)
+	{
+		return remaining * 2 >= totalCapacity();
 	}
 
 	private void startTrip(Activity activity)
 	{
 		model.setPrior(priors.getOrDefault(activity, 0.0));
 		model.start(activity, System.currentTimeMillis());
+		// The activity is only known now, so pick the container that collects what it gathers.
+		rescanBasket();
 		log.debug("trip started: {} free={} basket={} prior={}s/roll itemChance={}",
 			activity, INVENTORY_SIZE - occupiedSlots,
 			basket.isPresent() ? basket.getUsed() + "/" + BasketTracker.CAPACITY + (basket.isOpen() ? " open" : " closed") : "none",
@@ -432,14 +503,26 @@ public class TripEtaPlugin extends Plugin
 		}
 		int items = model.getItems();
 		int rolls = model.rolls();
+		// The item type's own rate is the one worth having, so learn it first: finish()
+		// clears the trip. A mixed load teaches no type, since one gathering clock cannot
+		// be divided between them.
+		String type = model.getCurrentType();
+		boolean mixed = model.isMixedTypes();
+		double typeRate = model.finishType();
+		if (typeRate > 0 && type != null)
+		{
+			configManager.setRSProfileConfiguration(TripEtaConfig.GROUP, typeKey(activity, type), typeRate);
+		}
 		double prior = model.finish();
 		if (prior > 0 && rolls >= TripModel.MIN_ROLLS_TO_LEARN)
 		{
 			priors.put(activity, prior);
 			savePrior(activity, prior);
 		}
-		log.debug("trip finished: {} items={} rolls={} prior now {}s/roll, misses seen={}",
-			activity, items, rolls, String.format("%.2f", prior), model.isMissesSeenBefore());
+		log.debug("trip finished: {} items={} rolls={} {} now {}s/roll, skill now {}s/roll, misses seen={}",
+			activity, items, rolls, type == null ? "(unnamed)" : type,
+			typeRate > 0 ? String.format("%.2f", typeRate) : (mixed ? "unchanged, mixed load" : "unchanged"),
+			String.format("%.2f", prior), model.isMissesSeenBefore());
 	}
 
 	private void checkLead(int remaining)
@@ -470,7 +553,7 @@ public class TripEtaPlugin extends Plugin
 		}
 		if (config.dinkNotify())
 		{
-			double offSeconds = gathering ? 0 : model.getOffStreakTicks() * TripModel.TICK_SECONDS;
+			double offSeconds = model.visibleOffStreakTicks() * TripModel.TICK_SECONDS;
 			dink.notifyLead(model, est, remaining, offSeconds);
 		}
 	}
@@ -500,40 +583,56 @@ public class TripEtaPlugin extends Plugin
 		rescanBasket();
 	}
 
-	/** Look for a basket in the inventory, then the worn equipment (cape slot). Client thread only. */
+	/** Look for a container in the inventory, then the worn equipment (cape slot). Client thread only. */
 	private void rescanBasket()
 	{
 		boolean hadBasket = basket.isPresent();
-		int found = findBasket(client.getItemContainer(InventoryID.INV));
+		// Both a log basket and a fish barrel can be carried at once, so the one that
+		// collects what this trip gathers wins; with no trip running, the first found.
+		Activity wanted = model.isActive() ? model.getActivity() : null;
+		int found = findBasket(client.getItemContainer(InventoryID.INV), wanted);
 		boolean worn = false;
 		if (found < 0)
 		{
-			found = findBasket(client.getItemContainer(InventoryID.WORN));
+			found = findBasket(client.getItemContainer(InventoryID.WORN), wanted);
 			worn = found >= 0;
 		}
-		basket.setPresent(found >= 0, found >= 0 && BasketTracker.isOpenBasket(found), worn);
+		basket.setPresent(BasketTracker.kindOf(found), found >= 0 && BasketTracker.isOpen(found), worn);
 		if (basket.isPresent() != hadBasket)
 		{
-			log.debug("basket {} ({}{})", basket.isPresent() ? "found" : "gone",
+			log.debug("{} {} ({}{})", basket.noun(), basket.isPresent() ? "found" : "gone",
 				basket.isOpen() ? "open" : "closed", basket.isWorn() ? ", worn" : "");
 		}
 	}
 
-	/** The basket item ID in the container, or -1. */
-	private static int findBasket(ItemContainer container)
+	/**
+	 * The basket or barrel item ID in {@code container}, or -1. One matching {@code wanted}
+	 * is preferred over one that collects something else this trip does not gather.
+	 */
+	private static int findBasket(ItemContainer container, Activity wanted)
 	{
 		if (container == null)
 		{
 			return -1;
 		}
+		int first = -1;
 		for (Item item : container.getItems())
 		{
-			if (BasketTracker.isBasket(item.getId()))
+			BasketTracker.Kind kind = BasketTracker.kindOf(item.getId());
+			if (kind == null)
+			{
+				continue;
+			}
+			if (wanted != null && kind.activity == wanted)
 			{
 				return item.getId();
 			}
+			if (first < 0)
+			{
+				first = item.getId();
+			}
 		}
-		return -1;
+		return first;
 	}
 
 	private static int countOccupied(ItemContainer container)
@@ -583,6 +682,22 @@ public class TripEtaPlugin extends Plugin
 	private void savePrior(Activity activity, double secondsPerRoll)
 	{
 		configManager.setRSProfileConfiguration(TripEtaConfig.GROUP, PRIOR_KEY_PREFIX + activity.name(), secondsPerRoll);
+	}
+
+	/**
+	 * Settings key for one item type's rate, e.g. {@code secondsPerRoll.WOODCUTTING.redwood_logs}.
+	 * A new key beside the per-skill one rather than a replacement for it, so nobody's learned
+	 * rates are lost and the skill figure keeps working as the fallback.
+	 */
+	private static String typeKey(Activity activity, String type)
+	{
+		return PRIOR_KEY_PREFIX + activity.name() + "." + type;
+	}
+
+	private double loadTypePrior(Activity activity, String type)
+	{
+		Double v = configManager.getRSProfileConfiguration(TripEtaConfig.GROUP, typeKey(activity, type), Double.class);
+		return v == null || v <= 0 ? 0 : v;
 	}
 
 	private void resetAll()

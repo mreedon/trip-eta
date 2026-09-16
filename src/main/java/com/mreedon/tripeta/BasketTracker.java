@@ -29,21 +29,45 @@ import java.util.regex.Pattern;
 import net.runelite.api.gameval.ItemID;
 
 /**
- * Follows how many logs are in a log basket or forestry basket, from the messages the
- * game prints and from what happens to the inventory.
+ * Follows how many items are in a gathering container: a log basket or forestry basket
+ * for logs, a fish barrel or fish sack barrel for raw fish. Each holds 28, each has an
+ * open state that collects on its own and a closed one that needs a manual fill, and
+ * each can be worn as well as carried.
  *
- * The game never exposes the basket's contents directly. What it does give us:
- * - a distinct item ID for each of open/closed log basket and forestry basket,
+ * The game never exposes the contents directly. What it does give us:
+ * - a distinct item ID for each of open/closed, basket/barrel,
  * - "The basket is full." / "Your basket is empty." / "The basket is empty.",
  * - the lines printed when emptying into the bank or the inventory,
- * - the "Check" summary, which lists "N x Some logs" per log type,
- * - and the fact that a log arriving with no inventory change went into an open basket.
+ * - the "Check" summary, which lists "N x Some logs" per item type,
+ * - and the fact that an item arriving with no inventory change went into an open container.
+ *
+ * The basket's lines are verbatim from the game. Of the barrel's only the full line is
+ * known for sure ("The barrel is full. It may be emptied at a bank."); the rest are
+ * taken to follow the basket's with the noun swapped, and the plugin logs any barrel
+ * line it does not recognise so those guesses can be checked against play.
  *
  * After login the contents are unknown and assumed empty until one of those corrects it.
  */
 class BasketTracker
 {
 	static final int CAPACITY = 28;
+
+	enum Kind
+	{
+		LOG_BASKET("basket", Activity.WOODCUTTING),
+		FISH_BARREL("barrel", Activity.FISHING);
+
+		/** The word the game uses for it in chat and in the Check box. */
+		final String noun;
+		/** The activity whose items it collects. */
+		final Activity activity;
+
+		Kind(String noun, Activity activity)
+		{
+			this.noun = noun;
+			this.activity = activity;
+		}
+	}
 
 	enum Outcome
 	{
@@ -52,46 +76,89 @@ class BasketTracker
 		EMPTIED_TO_BANK,
 	}
 
-	private static final String FULL = "The basket is full.";
-	private static final String EMPTIED_TO_BANK = "You empty your basket into the bank.";
+	private static final Pattern FULL = Pattern.compile("^The (?:basket|barrel) is full\\.(?: It may be emptied at a bank\\.)?$");
+	private static final Pattern EMPTIED_TO_BANK = Pattern.compile("^You empty (?:your|the) (?:basket|barrel) into the bank\\.$");
 	private static final String CONTAINERS_EMPTIED_TO_BANK = "You empty all of your containers into the bank.";
 	private static final String CONTAINERS_ALREADY_EMPTY = "Your containers are already empty.";
-	private static final String IS_EMPTY = "Your basket is empty.";
-	private static final String CHECKED_EMPTY = "The basket is empty.";
-	private static final String EMPTIED_TO_INVENTORY = "You empty your basket.";
+	private static final Pattern IS_EMPTY = Pattern.compile("^(?:Your|The) (?:basket|barrel) is empty\\.$");
+	private static final Pattern EMPTIED_TO_INVENTORY = Pattern.compile("^You empty (?:your|the) (?:basket|barrel)\\.$");
+	/** Any line that talks about a basket or barrel, recognised or not. */
+	private static final Pattern MENTIONS = Pattern.compile("\\b(?:basket|barrel)\\b", Pattern.CASE_INSENSITIVE);
 	/** Entries in the "Check" item box look like "12 x Redwood logs". */
 	private static final Pattern CHECK_ENTRY = Pattern.compile("(\\d+)\\s*[×x]\\s+(?=[A-Za-z])", Pattern.CASE_INSENSITIVE);
 
-	private boolean present;
+	private Kind kind;
 	private boolean open;
 	private boolean worn;
 	private int used;
 
-	static boolean isBasket(int itemId)
+	/** Which container this item is, or null if it is not one. */
+	static Kind kindOf(int itemId)
 	{
-		return itemId == ItemID.LOG_BASKET_CLOSED || itemId == ItemID.LOG_BASKET_OPEN
-			|| itemId == ItemID.FORESTRY_BASKET_CLOSED || itemId == ItemID.FORESTRY_BASKET_OPEN;
+		switch (itemId)
+		{
+			case ItemID.LOG_BASKET_CLOSED:
+			case ItemID.LOG_BASKET_OPEN:
+			case ItemID.FORESTRY_BASKET_CLOSED:
+			case ItemID.FORESTRY_BASKET_OPEN:
+				return Kind.LOG_BASKET;
+			case ItemID.FISH_BARREL_CLOSED:
+			case ItemID.FISH_BARREL_OPEN:
+			case ItemID.FISH_SACK_BARREL_CLOSED:
+			case ItemID.FISH_SACK_BARREL_OPEN:
+				return Kind.FISH_BARREL;
+			default:
+				return null;
+		}
 	}
 
-	static boolean isOpenBasket(int itemId)
+	static boolean isOpen(int itemId)
 	{
-		return itemId == ItemID.LOG_BASKET_OPEN || itemId == ItemID.FORESTRY_BASKET_OPEN;
+		return itemId == ItemID.LOG_BASKET_OPEN || itemId == ItemID.FORESTRY_BASKET_OPEN
+			|| itemId == ItemID.FISH_BARREL_OPEN || itemId == ItemID.FISH_SACK_BARREL_OPEN;
+	}
+
+	static boolean mentionsContainer(String message)
+	{
+		return MENTIONS.matcher(message).find();
 	}
 
 	/**
-	 * Called whenever the inventory or worn equipment changes: whether a basket is carried
-	 * (inventory or cape slot), whether it is open, and whether it is the worn one.
+	 * Called whenever the inventory or worn equipment changes: which container is carried
+	 * (null for none), whether it is open, and whether it is the worn one.
 	 */
-	void setPresent(boolean present, boolean open, boolean worn)
+	void setPresent(Kind kind, boolean open, boolean worn)
 	{
-		this.present = present;
+		if (kind != this.kind)
+		{
+			// A different container has its own contents; the count does not carry over.
+			used = 0;
+		}
+		this.kind = kind;
 		this.open = open;
 		this.worn = worn;
 	}
 
 	boolean isPresent()
 	{
-		return present;
+		return kind != null;
+	}
+
+	Kind getKind()
+	{
+		return kind;
+	}
+
+	/** Whether the carried container collects what this activity gathers. */
+	boolean takes(Activity activity)
+	{
+		return kind != null && kind.activity == activity;
+	}
+
+	/** "basket" or "barrel", for labels. */
+	String noun()
+	{
+		return kind == null ? "basket" : kind.noun;
 	}
 
 	boolean isOpen()
@@ -109,38 +176,38 @@ class BasketTracker
 		return used;
 	}
 
-	/** Logs the basket can still take; 0 when there is no basket. */
+	/** Items the container can still take; 0 when there is none. */
 	int remaining()
 	{
-		return present ? Math.max(0, CAPACITY - used) : 0;
+		return kind != null ? Math.max(0, CAPACITY - used) : 0;
 	}
 
 	Outcome onMessage(String message)
 	{
-		switch (message)
+		if (CONTAINERS_EMPTIED_TO_BANK.equals(message) || EMPTIED_TO_BANK.matcher(message).matches())
 		{
-			case EMPTIED_TO_BANK:
-			case CONTAINERS_EMPTIED_TO_BANK:
-				used = 0;
-				return Outcome.EMPTIED_TO_BANK;
-			case CONTAINERS_ALREADY_EMPTY:
-			case IS_EMPTY:
-			case CHECKED_EMPTY:
-			case EMPTIED_TO_INVENTORY:
-				used = 0;
-				return Outcome.UPDATED;
-			case FULL:
-				used = CAPACITY;
-				return Outcome.UPDATED;
-			default:
-				return Outcome.NONE;
+			used = 0;
+			return Outcome.EMPTIED_TO_BANK;
 		}
+		if (CONTAINERS_ALREADY_EMPTY.equals(message)
+			|| IS_EMPTY.matcher(message).matches()
+			|| EMPTIED_TO_INVENTORY.matcher(message).matches())
+		{
+			used = 0;
+			return Outcome.UPDATED;
+		}
+		if (FULL.matcher(message).matches())
+		{
+			used = CAPACITY;
+			return Outcome.UPDATED;
+		}
+		return Outcome.NONE;
 	}
 
 	/**
-	 * The text of the item box the game opens for "Check" on a basket. This is a widget,
-	 * not a chat line: "The basket contains:" followed by one "N x Some logs" entry per
-	 * log type, with line breaks as {@code <br>} tags. An empty basket says so in words.
+	 * The text of the item box the game opens for "Check". This is a widget, not a chat
+	 * line: "The basket contains:" followed by one "N x Some logs" entry per item type,
+	 * with line breaks as {@code <br>} tags. An empty container says so in words.
 	 */
 	Outcome onCheckText(String text)
 	{
@@ -149,12 +216,12 @@ class BasketTracker
 			return Outcome.NONE;
 		}
 		String plain = text.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
-		if (plain.contains("basket is empty"))
+		if (plain.contains("basket is empty") || plain.contains("barrel is empty"))
 		{
 			used = 0;
 			return Outcome.UPDATED;
 		}
-		if (!plain.contains("The basket contains"))
+		if (!plain.contains("The basket contains") && !plain.contains("The barrel contains"))
 		{
 			return Outcome.NONE;
 		}
@@ -174,41 +241,41 @@ class BasketTracker
 		return Outcome.UPDATED;
 	}
 
-	/** Items that arrived (per the chat) but never took an inventory slot went into the basket. */
+	/** Items that arrived (per the chat) but never took an inventory slot went into the container. */
 	void onItemsWithoutInventoryGain(int n)
 	{
-		if (present && n > 0)
+		if (kind != null && n > 0)
 		{
 			used = Math.min(CAPACITY, used + n);
 		}
 	}
 
 	/**
-	 * An item took an inventory slot while the basket was open. An open basket takes every
-	 * item until it is full, so this can only happen when it is: the count snaps to capacity.
-	 * This is what recovers from the unknown-after-login state without a manual Check.
+	 * An item took an inventory slot while the container was open. An open container takes
+	 * every item until it is full, so this can only happen when it is: the count snaps to
+	 * capacity. This is what recovers from the unknown-after-login state without a manual Check.
 	 */
 	void onItemsIntoInventoryWhileOpen(int n)
 	{
-		if (present && open && n > 0)
+		if (kind != null && open && n > 0)
 		{
 			used = CAPACITY;
 		}
 	}
 
-	/** Inventory slots gained with no item arriving came out of the basket ("empty as many as you can carry"). */
+	/** Inventory slots gained with no item arriving came out of the container ("empty as many as you can carry"). */
 	void onInventoryGainWithoutItems(int n)
 	{
-		if (present && n > 0)
+		if (kind != null && n > 0)
 		{
 			used = Math.max(0, used - n);
 		}
 	}
 
-	/** A large inventory drop away from any bank is the player filling the basket by hand. */
+	/** A large inventory drop away from any bank is the player filling the container by hand. */
 	void onManualFill(int slotsDropped)
 	{
-		if (present && slotsDropped > 0)
+		if (kind != null && slotsDropped > 0)
 		{
 			used = Math.min(CAPACITY, used + slotsDropped);
 		}
@@ -216,7 +283,7 @@ class BasketTracker
 
 	void reset()
 	{
-		present = false;
+		kind = null;
 		open = false;
 		worn = false;
 		used = 0;
