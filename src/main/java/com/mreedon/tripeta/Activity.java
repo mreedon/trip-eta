@@ -31,15 +31,13 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import net.runelite.api.gameval.AnimationID;
 
 /**
  * A gathering activity the plugin understands: how to tell the player is doing it
  * (the local player's animation) and how to tell an item just arrived (a chat line).
  *
- * Animation sets mirror the core RuneLite plugins for each skill (Woodcutting,
- * MiningAnimation, and the Idle Notifier's fishing set), so anything core treats as
- * "doing the skill" counts as gathering time here too.
+ * The animation ids themselves live in {@link GatheringAnimations}, so that what an
+ * activity means stays readable without scrolling past every pickaxe in the game.
  */
 enum Activity
 {
@@ -55,35 +53,7 @@ enum Activity
 		4,
 		// A tree keeps giving logs, so any pause is the player, not the work.
 		0,
-		new int[]{
-			AnimationID.HUMAN_WOODCUTTING_BRONZE_AXE,
-			AnimationID.HUMAN_WOODCUTTING_IRON_AXE,
-			AnimationID.HUMAN_WOODCUTTING_STEEL_AXE,
-			AnimationID.HUMAN_WOODCUTTING_BLACK_AXE,
-			AnimationID.HUMAN_WOODCUTTING_MITHRIL_AXE,
-			AnimationID.HUMAN_WOODCUTTING_ADAMANT_AXE,
-			AnimationID.HUMAN_WOODCUTTING_RUNE_AXE,
-			AnimationID.HUMAN_WOODCUTTING_GILDED_AXE,
-			AnimationID.HUMAN_WOODCUTTING_DRAGON_AXE,
-			AnimationID.HUMAN_WOODCUTTING_INFERNAL_AXE,
-			AnimationID.HUMAN_WOODCUTTING_3A_AXE,
-			AnimationID.HUMAN_WOODCUTTING_CRYSTAL_AXE,
-			AnimationID.HUMAN_WOODCUTTING_TRAILBLAZER_AXE,
-			AnimationID.HUMAN_WOODCUTTING_TRAILBLAZER_AXE_NO_INFERNAL,
-			AnimationID.HUMAN_WOODCUTTING_TRAILBLAZER_RELOADED_AXE,
-			AnimationID.HUMAN_WOODCUTTING_TRAILBLAZER_RELOADED_AXE_NO_INFERNAL,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_BRONZE,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_IRON,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_STEEL,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_BLACK,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_MITHRIL,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_ADAMANT,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_RUNE,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_DRAGON,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_CRYSTAL,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_CRYSTAL_INACTIVE,
-			AnimationID.FORESTRY_2H_AXE_CHOPPING_3A,
-		},
+		GatheringAnimations.WOODCUTTING,
 		// Same shape as the core Woodcutting plugin's pattern, plus the two bonus-log lines
 		// (Kandarin headgear, nature offerings) that hand over a log without a "You get" line.
 		Pattern.compile("^(?:You get (?:some|an) ?([\\w' -]*(?:logs?|mushrooms))"
@@ -106,62 +76,7 @@ enum Activity
 		// (a few ticks) or a wait for a respawn (iron: 9 ticks, 4 in the Mining Guild;
 		// amethyst empties every 2-3 ores). 12 seconds covers those; longer is time away.
 		20,
-		new int[]{
-			AnimationID.HUMAN_MINING_BRONZE_PICKAXE,
-			AnimationID.HUMAN_MINING_BRONZE_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_BRONZE_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_IRON_PICKAXE,
-			AnimationID.HUMAN_MINING_IRON_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_IRON_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_STEEL_PICKAXE,
-			AnimationID.HUMAN_MINING_STEEL_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_STEEL_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_BLACK_PICKAXE,
-			AnimationID.HUMAN_MINING_BLACK_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_BLACK_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_MITHRIL_PICKAXE,
-			AnimationID.HUMAN_MINING_MITHRIL_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_MITHRIL_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_ADAMANT_PICKAXE,
-			AnimationID.HUMAN_MINING_ADAMANT_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_ADAMANT_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_RUNE_PICKAXE,
-			AnimationID.HUMAN_MINING_RUNE_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_RUNE_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_GILDED_PICKAXE,
-			AnimationID.HUMAN_MINING_GILDED_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_GILDED_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_DRAGON_PICKAXE,
-			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_PRETTY,
-			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_PRETTY_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_DRAGON_PICKAXE_PRETTY_WALL,
-			AnimationID.HUMAN_MINING_INFERNAL_PICKAXE,
-			AnimationID.HUMAN_MINING_INFERNAL_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_INFERNAL_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_3A_PICKAXE,
-			AnimationID.HUMAN_MINING_3A_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_3A_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_CRYSTAL_PICKAXE,
-			AnimationID.HUMAN_MINING_CRYSTAL_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_CRYSTAL_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_NO_INFERNAL,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_NO_INFERNAL_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_PICKAXE_NO_INFERNAL_WALL,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_WALL,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_NO_INFERNAL,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_NO_INFERNAL_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_TRAILBLAZER_RELOADED_PICKAXE_NO_INFERNAL_WALL,
-			AnimationID.HUMAN_MINING_LEAGUE_TRAILBLAZER_PICKAXE,
-			AnimationID.HUMAN_MINING_LEAGUE_TRAILBLAZER_PICKAXE_NOREACHFORWARD,
-			AnimationID.HUMAN_MINING_LEAGUE_TRAILBLAZER_PICKAXE_WALL,
-		},
+		GatheringAnimations.MINING,
 		// Ore lines, plus the bonus-ore lines (Varrock armour, Mining cape, celestial ring)
 		// that hand over an ore without a "You manage to mine" line. The hyphen matters:
 		// Motherlode Mine gives "You manage to mine some pay-dirt."
@@ -182,38 +97,7 @@ enum Activity
 		0,
 		// A spot moves a few tiles now and then; 6 seconds covers the walk to it.
 		10,
-		new int[]{
-			AnimationID.HUMAN_FISHING_CASTING,
-			AnimationID.HUMAN_FISHING_CASTING_BRUT,
-			AnimationID.HUMAN_FISHING_CASTING_NPC,
-			AnimationID.HUMAN_FISHING_CASTING_PEARL,
-			AnimationID.HUMAN_FISHING_CASTING_PEARL_BRUT,
-			AnimationID.HUMAN_FISHING_CASTING_PEARL_FLY,
-			AnimationID.HUMAN_FISHING_CASTING_PEARL_OILY,
-			AnimationID.HUMAN_FISHING_ONSPOT_BRUT,
-			AnimationID.HUMAN_FISH_ONSPOT,
-			AnimationID.HUMAN_FISH_ONSPOT_PEARL,
-			AnimationID.HUMAN_FISH_ONSPOT_PEARL_BRUT,
-			AnimationID.HUMAN_FISH_ONSPOT_PEARL_FLY,
-			AnimationID.HUMAN_FISH_ONSPOT_PEARL_OILY,
-			AnimationID.HUMAN_HARPOON,
-			AnimationID.HUMAN_HARPOON_BARBED,
-			AnimationID.HUMAN_HARPOON_CRYSTAL,
-			AnimationID.HUMAN_HARPOON_DRAGON,
-			AnimationID.HUMAN_HARPOON_INFERNAL,
-			AnimationID.HUMAN_HARPOON_TRAILBLAZER,
-			AnimationID.HUMAN_HARPOON_TRAILBLAZER_NO_INFERNAL,
-			AnimationID.HUMAN_HARPOON_TRAILBLAZER_RELOADED,
-			AnimationID.HUMAN_HARPOON_TRAILBLAZER_RELOADED_NO_INFERNAL,
-			AnimationID.HUMAN_HARPOON_LEAGUE_TRAILBLAZER,
-			AnimationID.HUMAN_LARGENET,
-			AnimationID.HUMAN_SMALLNET,
-			// Cage fishing (lobster, crab) and the karambwan vessel, which the game calls
-			// an octopus pot. Both are in the core Idle Notifier's fishing set.
-			AnimationID.HUMAN_LOBSTER,
-			AnimationID.HUMAN_OCTOPUS_POT,
-			AnimationID.BRUT_PLAYER_HAND_FISHING_END_BLANK,
-		},
+		GatheringAnimations.FISHING,
 		// Core Fishing plugin's catch regex, the ice-gloves suffix, and the extra-fish lines
 		// (Rada's blessing, angler's outfit) that hand over a fish without a "You catch" line.
 		Pattern.compile("^(?:You catch (?:an?|some) ([\\w' -]+?)"
