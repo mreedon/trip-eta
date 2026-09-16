@@ -7,6 +7,18 @@ Woodcutting, mining and fishing. Each is an entry in one activity table: the
 animation set that means "gathering" and the chat line that means "an item arrived".
 Fish barrels and coal bags are not followed yet, only the log basket is.
 
+## Who it is for
+
+Long trips you are not watching: redwoods, amethyst, Motherlode, a fishing spot you
+sit at for twenty minutes. That is where "how much more chopping is left" is worth
+knowing, and where a warning two minutes before full lets you look back at the right
+moment.
+
+It has nothing to add to fast methods. A trip that fills in a couple of minutes is
+over before the estimate settles, since it wants a few items and a learned rate first.
+Tick manipulation is worse: the trick is cancelling the gathering animation every
+tick, and that animation is the only clock the plugin trusts.
+
 ## What it shows
 
 A small overlay while a trip is in progress:
