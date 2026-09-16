@@ -51,6 +51,8 @@ enum Activity
 		// not the cadence. Confirmed from 9,848 chop-to-chop gaps in the author's own log:
 		// 96% sit within 15% of a multiple of 2.4 s (a uniform spread would give 30%).
 		4,
+		// A tree keeps giving logs, so any pause is the player, not the work.
+		0,
 		new int[]{
 			AnimationID.HUMAN_WOODCUTTING_BRONZE_AXE,
 			AnimationID.HUMAN_WOODCUTTING_IRON_AXE,
@@ -98,6 +100,10 @@ enum Activity
 		// Pickaxes change the swing cadence as well as the odds, so no single cycle; the
 		// range falls back to the conservative end until this is measured.
 		0,
+		// Most rocks give one ore and empty, so every ore ends with a hop to the next rock
+		// (a few ticks) or a wait for a respawn (iron: 9 ticks, 4 in the Mining Guild;
+		// amethyst empties every 2-3 ores). 12 seconds covers those; longer is time away.
+		20,
 		new int[]{
 			AnimationID.HUMAN_MINING_BRONZE_PICKAXE,
 			AnimationID.HUMAN_MINING_BRONZE_PICKAXE_NOREACHFORWARD,
@@ -171,6 +177,8 @@ enum Activity
 		1.0,
 		// Fishing cadence varies by method; unknown until measured, so the range stays conservative.
 		0,
+		// A spot moves a few tiles now and then; 6 seconds covers the walk to it.
+		10,
 		new int[]{
 			AnimationID.HUMAN_FISHING_CASTING,
 			AnimationID.HUMAN_FISHING_CASTING_BRUT,
@@ -218,17 +226,23 @@ enum Activity
 	final double itemChanceWithMisses;
 	/** Game ticks between the game's success rolls for this activity; 0 if not known. */
 	final int rollTicks;
+	/**
+	 * Longest pause, in ticks, that is part of the work (a hop to the next rock, a spot
+	 * moving) rather than time away. Credited to gathering once gathering resumes.
+	 */
+	final int pauseGraceTicks;
 	private final Set<Integer> animations;
 	private final Pattern itemMessage;
 	private final Pattern rollWithoutItemMessage;
 
-	Activity(String verb, String itemNoun, String offLabel, double itemChanceWithMisses, int rollTicks, int[] animationIds, Pattern itemMessage, Pattern rollWithoutItemMessage)
+	Activity(String verb, String itemNoun, String offLabel, double itemChanceWithMisses, int rollTicks, int pauseGraceTicks, int[] animationIds, Pattern itemMessage, Pattern rollWithoutItemMessage)
 	{
 		this.verb = verb;
 		this.itemNoun = itemNoun;
 		this.offLabel = offLabel;
 		this.itemChanceWithMisses = itemChanceWithMisses;
 		this.rollTicks = rollTicks;
+		this.pauseGraceTicks = pauseGraceTicks;
 		Set<Integer> ids = new HashSet<>();
 		for (int id : animationIds)
 		{

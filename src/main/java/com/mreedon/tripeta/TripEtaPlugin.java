@@ -470,7 +470,7 @@ public class TripEtaPlugin extends Plugin
 		}
 		if (config.dinkNotify())
 		{
-			double offSeconds = gathering ? 0 : model.getOffStreakTicks() * TripModel.TICK_SECONDS;
+			double offSeconds = model.awayStreakTicks() * TripModel.TICK_SECONDS;
 			dink.notifyLead(model, est, remaining, offSeconds);
 		}
 	}

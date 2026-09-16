@@ -137,11 +137,14 @@ class TripEtaOverlay extends OverlayPanel
 				.build());
 		}
 
-		boolean off = !plugin.isGathering() && !model.isFull();
+		// A pause inside the activity's grace (a rock hop, a spot move) is not time away
+		// yet, so the line stays dark rather than flashing on every ore.
+		int awayTicks = model.isFull() ? 0 : model.awayStreakTicks();
+		boolean off = awayTicks > 0;
 		panelComponent.getChildren().add(LineComponent.builder()
 			.left(activity.offLabel)
 			.leftColor(off ? Color.WHITE : DIM)
-			.right(off ? TripModel.formatSeconds(model.getOffStreakTicks() * TripModel.TICK_SECONDS) : "-")
+			.right(off ? TripModel.formatSeconds(awayTicks * TripModel.TICK_SECONDS) : "-")
 			.rightColor(off ? OFF_COLOR : DIM)
 			.build());
 

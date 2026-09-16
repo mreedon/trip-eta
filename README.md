@@ -31,6 +31,12 @@ So the plugin keeps two clocks:
 - **Time off the tree**: everything else. It is displayed, and it is reported to Dink
   if you ask for that, but it never moves the estimate.
 
+Some pauses are part of the work rather than time away: the hop to the next rock when
+one runs dry, a fishing spot moving a few tiles. Once you are back at it, a pause that
+short is credited to gathering time, and the off-rock line never lit up for it. A pause
+that runs longer is time away, all of it. Woodcutting gets no such allowance: a tree
+keeps you chopping log after log, so a pause there is you.
+
 The estimate is `items still needed × seconds of chopping per item`. The rate comes
 from this trip, blended with what earlier trips on this account taught it, so the
 first minute of a trip is not wild.

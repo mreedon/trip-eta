@@ -268,6 +268,98 @@ public class TripModelTest
 		assertEquals(42, m.getStartedAtMs());
 	}
 
+	private static void pause(TripModel m, int ticks)
+	{
+		for (int i = 0; i < ticks; i++)
+		{
+			m.tick(false);
+		}
+	}
+
+	@Test
+	public void aPauseInsideTheGraceIsCreditedBackWhenGatheringResumes()
+	{
+		TripModel m = new TripModel();
+		m.start(Activity.MINING, 0);
+		gather(m, 10);
+		pause(m, 3); // hop to the next rock
+		assertEquals(3, m.getOffTicks());
+		gather(m, 1);
+		assertEquals(14, m.getGatherTicks());
+		assertEquals(0, m.getOffTicks());
+		assertEquals(0, m.getOffStreakTicks());
+	}
+
+	@Test
+	public void aPauseLongerThanTheGraceStaysOffInFull()
+	{
+		TripModel m = new TripModel();
+		m.start(Activity.MINING, 0);
+		gather(m, 10);
+		int away = Activity.MINING.pauseGraceTicks + 1;
+		pause(m, away);
+		gather(m, 1);
+		// No partial credit: the whole pause was time away.
+		assertEquals(11, m.getGatherTicks());
+		assertEquals(away, m.getOffTicks());
+	}
+
+	@Test
+	public void aPauseExactlyAtTheGraceStillCounts()
+	{
+		TripModel m = new TripModel();
+		m.start(Activity.FISHING, 0);
+		gather(m, 5);
+		pause(m, Activity.FISHING.pauseGraceTicks);
+		gather(m, 1);
+		assertEquals(6 + Activity.FISHING.pauseGraceTicks, m.getGatherTicks());
+		assertEquals(0, m.getOffTicks());
+	}
+
+	@Test
+	public void woodcuttingHasNoGrace()
+	{
+		TripModel m = started();
+		gather(m, 10);
+		pause(m, 1);
+		gather(m, 1);
+		assertEquals(11, m.getGatherTicks());
+		assertEquals(1, m.getOffTicks());
+	}
+
+	@Test
+	public void aPauseThatNeverEndsIsNotCredited()
+	{
+		// Walking to the bank is a pause with no resumption; it stays off-time in the summary.
+		TripModel m = new TripModel();
+		m.start(Activity.MINING, 0);
+		gather(m, 10);
+		pause(m, 3);
+		assertEquals(3, m.getOffTicks());
+		assertEquals(10, m.getGatherTicks());
+	}
+
+	@Test
+	public void awayStreakIgnoresAPauseInsideTheGrace()
+	{
+		TripModel m = new TripModel();
+		m.start(Activity.MINING, 0);
+		gather(m, 1);
+		pause(m, Activity.MINING.pauseGraceTicks);
+		assertEquals(Activity.MINING.pauseGraceTicks, m.getOffStreakTicks());
+		assertEquals(0, m.awayStreakTicks());
+		pause(m, 1);
+		// Past the grace the whole streak is shown, not just the part beyond it.
+		assertEquals(Activity.MINING.pauseGraceTicks + 1, m.awayStreakTicks());
+		gather(m, 1);
+		assertEquals(0, m.awayStreakTicks());
+
+		TripModel w = started();
+		gather(w, 1);
+		pause(w, 1);
+		assertEquals(1, w.awayStreakTicks());
+	}
+
 	@Test
 	public void fullStopsTheClock()
 	{

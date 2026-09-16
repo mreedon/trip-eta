@@ -32,6 +32,11 @@ package com.mreedon.tripeta;
  * and never shortens or lengthens the estimate. That is the whole point: the number
  * answers "how much more chopping is left", not "how long until you happen to be done".
  *
+ * One allowance: a pause no longer than the activity's grace is part of the work, not
+ * time away. A rock gives one ore and you hop to the next; a fishing spot moves. Those
+ * gaps are a fixed share of every item, so once gathering resumes they are credited to
+ * the gathering clock. Woodcutting's grace is zero: a tree does not stop you per log.
+ *
  * Two random things happen while gathering, and the model keeps them apart:
  *
  * 1. How often a chop succeeds. This depends on level, axe and tree, and it is what
@@ -122,6 +127,14 @@ class TripModel
 		}
 		if (gathering)
 		{
+			if (offStreakTicks > 0 && offStreakTicks <= pauseGraceTicks())
+			{
+				// A pause short enough to be part of the work (a hop to the next rock, a
+				// fishing spot moving) is credited back to gathering now that it is over.
+				// A longer one was time away, all of it: no partial credit.
+				gatherTicks += offStreakTicks;
+				offTicks -= offStreakTicks;
+			}
 			gatherTicks++;
 			offStreakTicks = 0;
 		}
@@ -130,6 +143,21 @@ class TripModel
 			offTicks++;
 			offStreakTicks++;
 		}
+	}
+
+	/** Longest pause the activity treats as part of the work rather than time away. */
+	private int pauseGraceTicks()
+	{
+		return activity == null ? 0 : activity.pauseGraceTicks;
+	}
+
+	/**
+	 * Ticks of the current pause once it has outlived the activity's grace, so it is time
+	 * away and not a hop between rocks; 0 while gathering or inside a pause that short.
+	 */
+	int awayStreakTicks()
+	{
+		return offStreakTicks > pauseGraceTicks() ? offStreakTicks : 0;
 	}
 
 	/** An item arrived. Starts a trip if the animation never announced one (plugin enabled mid-trip). */
