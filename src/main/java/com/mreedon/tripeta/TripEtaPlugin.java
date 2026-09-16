@@ -208,7 +208,8 @@ public class TripEtaPlugin extends Plugin
 		int toBasket = Math.max(0, itemMessagesThisTick - inventoryGain);
 		int fromBasket = Math.max(0, inventoryGain - itemMessagesThisTick);
 		int intoInventory = Math.min(itemMessagesThisTick, inventoryGain);
-		if (intoInventory > 0 && basket.isPresent() && basket.isOpen() && basket.getUsed() < BasketTracker.CAPACITY)
+		boolean basketInPlay = basket.isPresent() && basketTakesItems();
+		if (intoInventory > 0 && basketInPlay && basket.isOpen() && basket.getUsed() < BasketTracker.CAPACITY)
 		{
 			// An open basket only lets an item reach the inventory once it is full.
 			basket.onItemsIntoInventoryWhileOpen(intoInventory);
@@ -217,7 +218,7 @@ public class TripEtaPlugin extends Plugin
 		}
 		if (toBasket > 0)
 		{
-			if (basket.isPresent())
+			if (basketInPlay)
 			{
 				basket.onItemsWithoutInventoryGain(toBasket);
 				log.debug("basket took {} item(s): {}/{} (messages={} inventoryGain={})",
@@ -228,7 +229,7 @@ public class TripEtaPlugin extends Plugin
 				log.debug("{} item message(s) with no inventory gain and no basket in inventory", toBasket);
 			}
 		}
-		else if (fromBasket > 0 && basket.isPresent() && basket.getUsed() > 0)
+		else if (fromBasket > 0 && basketInPlay && basket.getUsed() > 0)
 		{
 			basket.onInventoryGainWithoutItems(fromBasket);
 			log.debug("basket gave up {} item(s): {}/{}", fromBasket, basket.getUsed(), BasketTracker.CAPACITY);
@@ -285,7 +286,7 @@ public class TripEtaPlugin extends Plugin
 		{
 			finishTrip();
 		}
-		else
+		else if (basketTakesItems())
 		{
 			basket.onManualFill(drop);
 		}
@@ -397,16 +398,26 @@ public class TripEtaPlugin extends Plugin
 		}
 	}
 
+	/**
+	 * Whether a carried basket takes what this trip gathers. Only logs go in a log basket:
+	 * an ore or a fish takes an inventory slot even with one carried. Before a trip has an
+	 * activity the basket is assumed to count, which only affects fill and empty tracking.
+	 */
+	boolean basketTakesItems()
+	{
+		return !model.isActive() || model.getActivity() == Activity.WOODCUTTING;
+	}
+
 	/** Free inventory slots plus whatever a basket in the inventory can still take. */
 	int remainingCapacity()
 	{
-		return Math.max(0, INVENTORY_SIZE - occupiedSlots) + basket.remaining();
+		return Math.max(0, INVENTORY_SIZE - occupiedSlots) + (basketTakesItems() ? basket.remaining() : 0);
 	}
 
-	/** Every slot a log could go in: the inventory plus the basket when there is one. */
+	/** Every slot this trip's items could go in: the inventory plus the basket when it takes them. */
 	int totalCapacity()
 	{
-		return INVENTORY_SIZE + (basket.isPresent() ? BasketTracker.CAPACITY : 0);
+		return INVENTORY_SIZE + (basket.isPresent() && basketTakesItems() ? BasketTracker.CAPACITY : 0);
 	}
 
 	private void startTrip(Activity activity)

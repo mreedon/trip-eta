@@ -93,7 +93,7 @@ class TripEtaOverlay extends OverlayPanel
 			.build());
 
 		BasketTracker basket = plugin.getBasket();
-		if (basket.isPresent())
+		if (basket.isPresent() && plugin.basketTakesItems())
 		{
 			panelComponent.getChildren().add(LineComponent.builder()
 				.left("Basket" + (basket.isOpen() ? " (open" : " (closed") + (basket.isWorn() ? ", worn)" : ")"))
