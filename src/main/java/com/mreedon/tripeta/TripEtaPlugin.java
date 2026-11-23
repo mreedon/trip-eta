@@ -120,6 +120,13 @@ public class TripEtaPlugin extends Plugin
 	private boolean bankOpen;
 	private int lastBankTick = -1000;
 	private int checkClickedTick = -1000;
+	/**
+	 * A big drop seen with no bank open, held for a tick: a one-click Deposit-all on a boat's
+	 * cargo hold opens no interface, and the hold's own container change can land just after
+	 * the inventory's, so the drop is only called a manual basket fill once the hold had its chance.
+	 */
+	private int pendingDrop;
+	private int pendingDropTick;
 	private int tick;
 
 	@Provides
@@ -180,6 +187,18 @@ public class TripEtaPlugin extends Plugin
 		if (local == null)
 		{
 			return;
+		}
+
+		if (pendingDrop > 0 && tick - pendingDropTick > BANK_GRACE_TICKS)
+		{
+			// No cargo hold took it, so the items went into the basket by hand.
+			log.debug("drop of {} not claimed by a cargo hold -> {}", pendingDrop,
+				basketTakesItems() ? "manual basket fill" : "ignored");
+			if (basketTakesItems())
+			{
+				basket.onManualFill(pendingDrop);
+			}
+			pendingDrop = 0;
 		}
 
 		Activity activity = Activity.forAnimation(local.getAnimation());
@@ -277,6 +296,18 @@ public class TripEtaPlugin extends Plugin
 			rescanBasket();
 			return;
 		}
+		if (isCargoHold(event.getContainerId()))
+		{
+			// A cargo hold is a bank for trip purposes: sailing fishers deposit there.
+			lastBankTick = tick;
+			if (pendingDrop > 0)
+			{
+				log.debug("cargo hold {} changed: the drop of {} was a deposit", event.getContainerId(), pendingDrop);
+				pendingDrop = 0;
+				finishTrip();
+			}
+			return;
+		}
 		if (event.getContainerId() != InventoryID.INV)
 		{
 			return;
@@ -292,14 +323,16 @@ public class TripEtaPlugin extends Plugin
 		}
 		boolean banking = bankOpen || (tick - lastBankTick) <= BANK_GRACE_TICKS;
 		log.debug("inventory dropped by {} to {} occupied; bankOpen={} ticksSinceBank={} -> {}",
-			drop, now, bankOpen, tick - lastBankTick, banking ? "deposit" : (basket.isPresent() ? "manual basket fill" : "ignored"));
+			drop, now, bankOpen, tick - lastBankTick, banking ? "deposit" : "held a tick for a cargo hold");
 		if (banking)
 		{
+			pendingDrop = 0;
 			finishTrip();
 		}
-		else if (basketTakesItems())
+		else
 		{
-			basket.onManualFill(drop);
+			pendingDrop += drop;
+			pendingDropTick = tick;
 		}
 	}
 
@@ -650,7 +683,23 @@ public class TripEtaPlugin extends Plugin
 
 	private static boolean isBankInterface(int groupId)
 	{
-		return groupId == InterfaceID.BANKMAIN || groupId == InterfaceID.BANK_DEPOSITBOX;
+		return groupId == InterfaceID.BANKMAIN || groupId == InterfaceID.BANK_DEPOSITBOX
+			|| groupId == InterfaceID.SAILING_BOAT_CARGOHOLD;
+	}
+
+	private static boolean isCargoHold(int containerId)
+	{
+		switch (containerId)
+		{
+			case InventoryID.SAILING_BOAT_1_CARGOHOLD:
+			case InventoryID.SAILING_BOAT_2_CARGOHOLD:
+			case InventoryID.SAILING_BOAT_3_CARGOHOLD:
+			case InventoryID.SAILING_BOAT_4_CARGOHOLD:
+			case InventoryID.SAILING_BOAT_5_CARGOHOLD:
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	private void loadPriors()
@@ -709,5 +758,6 @@ public class TripEtaPlugin extends Plugin
 		occupiedAtTickStart = 0;
 		itemMessagesThisTick = 0;
 		bankOpen = false;
+		pendingDrop = 0;
 	}
 }
